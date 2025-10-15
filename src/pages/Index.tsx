@@ -27,8 +27,18 @@ const Index = () => {
   const speakText = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "de-DE";
-    utterance.rate = 0.9;
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    
+    // Try to use a better German voice
+    const voices = window.speechSynthesis.getVoices();
+    const germanVoice = voices.find(voice => 
+      voice.lang === 'de-DE' || voice.lang.startsWith('de')
+    );
+    if (germanVoice) {
+      utterance.voice = germanVoice;
+    }
     
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
