@@ -81,41 +81,55 @@ const Index = () => {
 
       recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
+        console.log("Erkannter Text:", transcript);
         
         const userMessage: Message = { role: "user", content: transcript };
-        setMessages(prev => [...prev, userMessage]);
+        const updatedMessages = [...messages, userMessage];
+        setMessages(updatedMessages);
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/risto-chat`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              messages: [...messages, userMessage],
-            }),
+        try {
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/risto-chat`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({
+                messages: updatedMessages,
+              }),
+            }
+          );
+
+          console.log("Response Status:", response.status);
+          const data = await response.json();
+          console.log("Response Data:", data);
+          
+          if (data.error) {
+            toast({
+              title: "Fehler",
+              description: data.error,
+              variant: "destructive",
+            });
+            return;
           }
-        );
 
-        const data = await response.json();
-        
-        if (data.error) {
+          const assistantMessage: Message = { role: "assistant", content: data.text };
+          setMessages(prev => [...prev, assistantMessage]);
+          speakText(data.text);
+        } catch (fetchError) {
+          console.error("Fetch Error:", fetchError);
           toast({
             title: "Fehler",
-            description: data.error,
+            description: "Verbindung zur KI fehlgeschlagen",
             variant: "destructive",
           });
-          return;
         }
-
-        const assistantMessage: Message = { role: "assistant", content: data.text };
-        setMessages(prev => [...prev, assistantMessage]);
-        speakText(data.text);
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event);
         toast({
           title: "Fehler",
           description: "Spracherkennung fehlgeschlagen",
@@ -123,10 +137,9 @@ const Index = () => {
         });
       };
 
-      const audio = new Audio(URL.createObjectURL(audioBlob));
-      audio.play();
       recognition.start();
     } catch (error) {
+      console.error("Processing error:", error);
       toast({
         title: "Fehler",
         description: "Verarbeitung fehlgeschlagen",
