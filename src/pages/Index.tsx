@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Mic, MicOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Mic, MicOff, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -14,6 +15,7 @@ const Index = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasGreeted, setHasGreeted] = useState(false);
+  const [inputText, setInputText] = useState("");
   const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
 
@@ -163,6 +165,54 @@ const Index = () => {
     }
   };
 
+  const handleTextSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim()) return;
+
+    const userMessage: Message = { role: "user", content: inputText };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInputText("");
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/risto-chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            messages: updatedMessages,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      
+      if (data.error) {
+        toast({
+          title: "Fehler",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const assistantMessage: Message = { role: "assistant", content: data.text };
+      setMessages(prev => [...prev, assistantMessage]);
+      speakText(data.text);
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Fehler",
+        description: "Verbindung zur KI fehlgeschlagen",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl p-8 space-y-6">
@@ -222,6 +272,19 @@ const Index = () => {
             </div>
           ))}
         </div>
+
+        <form onSubmit={handleTextSubmit} className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="Oder schreiben Sie Ihre Frage hier..."
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            className="flex-1"
+          />
+          <Button type="submit" size="icon" disabled={!inputText.trim()}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
       </Card>
     </div>
   );
