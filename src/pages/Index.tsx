@@ -14,8 +14,7 @@ const Index = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasGreeted, setHasGreeted] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,55 +38,38 @@ const Index = () => {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      // Initialize speech recognition
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      if (!SpeechRecognition) {
+        toast({
+          title: "Fehler",
+          description: "Spracherkennung wird nicht unterstützt",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await processAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: "Mikrofon-Zugriff nicht möglich",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const processAudio = async (audioBlob: Blob) => {
-    try {
-      const recognition = new (window as any).webkitSpeechRecognition();
+      const recognition = new SpeechRecognition();
       recognition.lang = "de-DE";
       recognition.continuous = false;
       recognition.interimResults = false;
 
+      recognition.onstart = () => {
+        console.log("Spracherkennung gestartet");
+        setIsRecording(true);
+      };
+
       recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
         console.log("Erkannter Text:", transcript);
+        setIsRecording(false);
         
         const userMessage: Message = { role: "user", content: transcript };
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
 
         try {
+          console.log("Sende Anfrage an Edge Function...");
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/risto-chat`,
             {
@@ -129,22 +111,37 @@ const Index = () => {
       };
 
       recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event);
+        console.error("Speech recognition error:", event.error);
+        setIsRecording(false);
         toast({
           title: "Fehler",
-          description: "Spracherkennung fehlgeschlagen",
+          description: `Spracherkennung fehlgeschlagen: ${event.error}`,
           variant: "destructive",
         });
       };
 
+      recognition.onend = () => {
+        console.log("Spracherkennung beendet");
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
       recognition.start();
     } catch (error) {
-      console.error("Processing error:", error);
+      console.error("Error starting recording:", error);
+      setIsRecording(false);
       toast({
         title: "Fehler",
-        description: "Verarbeitung fehlgeschlagen",
+        description: "Mikrofon-Zugriff nicht möglich",
         variant: "destructive",
       });
+    }
+  };
+
+  const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
     }
   };
 
