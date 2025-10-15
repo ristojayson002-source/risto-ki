@@ -102,11 +102,38 @@ Alle deine Antworten müssen auf Deutsch sein. Du sprichst natürlich, höflich 
         );
         const weatherData = await weatherResponse.json();
         
-        const weatherInfo = `Das Wetter in ${args.location}: ${weatherData.current_condition[0].temp_C}°C, ${weatherData.current_condition[0].weatherDesc[0].value}`;
+        const weatherInfo = `Aktuelles Wetter in ${args.location}: Temperatur ${weatherData.current_condition[0].temp_C}°C, ${weatherData.current_condition[0].weatherDesc[0].value}`;
+        
+        // Send weather data back to LLM to formulate a natural response
+        const finalResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...messages,
+              data.choices[0].message,
+              {
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: weatherInfo
+              }
+            ],
+          }),
+        });
+
+        if (!finalResponse.ok) {
+          throw new Error("Failed to get final response");
+        }
+
+        const finalData = await finalResponse.json();
         
         return new Response(JSON.stringify({ 
-          text: weatherInfo,
-          tool_used: "weather"
+          text: finalData.choices[0].message.content
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
