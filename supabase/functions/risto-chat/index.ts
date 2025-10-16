@@ -5,6 +5,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function searchWeb(query: string): Promise<string> {
+  try {
+    const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1`);
+    const data = await response.json();
+    
+    if (data.AbstractText) {
+      return data.AbstractText;
+    }
+    
+    return `Ich habe nach "${query}" gesucht, aber keine detaillierten Informationen gefunden.`;
+  } catch (error) {
+    console.error('Search error:', error);
+    return 'Suche fehlgeschlagen.';
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,14 +34,21 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    let systemPrompt = `Du bist Risto KI, eine freundliche, menschlich klingende Sprachassistentin.
+    let systemPrompt = `Du bist Risto KI, eine freundliche, menschlich klingende Assistentin mit Zugriff auf aktuelle Informationen und Bildanalyse.
 
 WICHTIG: Du antwortest IMMER und AUSSCHLIESSLICH auf Deutsch!
 
 Du hilfst bei:
-1. Wetterfragen - nutze die get_weather Funktion
-2. Verkaufsautomaten-Problemen - führe Schritt für Schritt durch Lösungen
-3. Allgemeinen Fragen
+1. **Wetterfragen** - nutze die get_weather Funktion
+2. **Aktuelle Informationen** - nutze die search_web Funktion für Echtzeitdaten und Ereignisse nach 2023
+3. **Bildanalyse** - beschreibe Bilder detailliert, erkenne Objekte, Text und Szenen
+4. **Verkaufsautomaten-Problemen** - führe Schritt für Schritt durch Lösungen
+5. **Allgemeinen Fragen**
+
+FORMATIERUNG:
+- Nutze **fett** für wichtige Begriffe und Schlüsselwörter
+- Strukturiere längere Antworten mit Absätzen
+- Verwende Listen wo sinnvoll
 
 Alle deine Antworten müssen auf Deutsch sein. Du sprichst natürlich, höflich und hilfreich.
 Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
@@ -45,6 +68,23 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
               }
             },
             required: ["location"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_web",
+          description: "Sucht im Internet nach aktuellen Informationen. Nutze dies für Fragen zu aktuellen Ereignissen, Nachrichten oder Informationen nach 2023.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "Die Suchanfrage auf Deutsch oder Englisch"
+              }
+            },
+            required: ["query"]
           }
         }
       }
@@ -92,18 +132,37 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
     
     // Check if tool call is needed
     if (data.choices[0].message.tool_calls) {
-      const toolCall = data.choices[0].message.tool_calls[0];
-      if (toolCall.function.name === "get_weather") {
-        const args = JSON.parse(toolCall.function.arguments);
-        // Fetch weather data (using free API)
-        const weatherResponse = await fetch(
-          `https://wttr.in/${encodeURIComponent(args.location)}?format=j1`
-        );
-        const weatherData = await weatherResponse.json();
-        
-        const weatherInfo = `Aktuelles Wetter in ${args.location}: Temperatur ${weatherData.current_condition[0].temp_C}°C, ${weatherData.current_condition[0].weatherDesc[0].value}`;
-        
-        // Send weather data back to LLM to formulate a natural response
+      const toolCalls = data.choices[0].message.tool_calls;
+      const toolMessages = [];
+
+      for (const toolCall of toolCalls) {
+        if (toolCall.function.name === "get_weather") {
+          const args = JSON.parse(toolCall.function.arguments);
+          const weatherResponse = await fetch(
+            `https://wttr.in/${encodeURIComponent(args.location)}?format=j1`
+          );
+          const weatherData = await weatherResponse.json();
+          
+          const weatherInfo = `Aktuelles Wetter in ${args.location}: Temperatur ${weatherData.current_condition[0].temp_C}°C, ${weatherData.current_condition[0].weatherDesc[0].value}`;
+          
+          toolMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: weatherInfo
+          });
+        } else if (toolCall.function.name === "search_web") {
+          const args = JSON.parse(toolCall.function.arguments);
+          const searchResult = await searchWeb(args.query);
+          
+          toolMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: searchResult
+          });
+        }
+      }
+
+      if (toolMessages.length > 0) {
         const finalResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -116,11 +175,7 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
               { role: "system", content: systemPrompt },
               ...messages,
               data.choices[0].message,
-              {
-                role: "tool",
-                tool_call_id: toolCall.id,
-                content: weatherInfo
-              }
+              ...toolMessages
             ],
           }),
         });

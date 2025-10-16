@@ -1,30 +1,36 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send } from "lucide-react";
+import { Mic, MicOff, Send, Camera, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  image?: string;
 }
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [hasGreeted, setHasGreeted] = useState(false);
   const [inputText, setInputText] = useState("");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [hasStarted, setHasStarted] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
-    if (!hasGreeted) {
-      speakText("Guten Tag, willkommen bei der Risto KI. Wie kann ich Ihnen heute helfen?");
-      setHasGreeted(true);
-    }
-  }, [hasGreeted]);
+    scrollToBottom();
+  }, [messages]);
 
   const speakText = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
@@ -57,8 +63,15 @@ const Index = () => {
   };
 
   const startRecording = async () => {
+    if (!hasStarted) {
+      setHasStarted(true);
+      const greeting = "Guten Tag, willkommen bei der Risto KI. Wie kann ich Ihnen heute helfen?";
+      setMessages([{ role: "assistant", content: greeting }]);
+      speakText(greeting);
+      return;
+    }
+
     try {
-      // Initialize speech recognition
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       if (!SpeechRecognition) {
         toast({
@@ -75,59 +88,13 @@ const Index = () => {
       recognition.interimResults = false;
 
       recognition.onstart = () => {
-        console.log("Spracherkennung gestartet");
         setIsRecording(true);
       };
 
       recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
-        console.log("Erkannter Text:", transcript);
         setIsRecording(false);
-        
-        const userMessage: Message = { role: "user", content: transcript };
-        const updatedMessages = [...messages, userMessage];
-        setMessages(updatedMessages);
-
-        try {
-          console.log("Sende Anfrage an Edge Function...");
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/risto-chat`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-              },
-              body: JSON.stringify({
-                messages: updatedMessages,
-              }),
-            }
-          );
-
-          console.log("Response Status:", response.status);
-          const data = await response.json();
-          console.log("Response Data:", data);
-          
-          if (data.error) {
-            toast({
-              title: "Fehler",
-              description: data.error,
-              variant: "destructive",
-            });
-            return;
-          }
-
-          const assistantMessage: Message = { role: "assistant", content: data.text };
-          setMessages(prev => [...prev, assistantMessage]);
-          speakText(data.text);
-        } catch (fetchError) {
-          console.error("Fetch Error:", fetchError);
-          toast({
-            title: "Fehler",
-            description: "Verbindung zur KI fehlgeschlagen",
-            variant: "destructive",
-          });
-        }
+        await sendMessage(transcript);
       };
 
       recognition.onerror = (event: any) => {
@@ -141,7 +108,6 @@ const Index = () => {
       };
 
       recognition.onend = () => {
-        console.log("Spracherkennung beendet");
         setIsRecording(false);
       };
 
@@ -165,14 +131,22 @@ const Index = () => {
     }
   };
 
-  const handleTextSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim()) return;
+  const sendMessage = async (text: string, imageData?: string) => {
+    if (!hasStarted) {
+      setHasStarted(true);
+      const greeting = "Guten Tag, willkommen bei der Risto KI. Wie kann ich Ihnen heute helfen?";
+      setMessages([{ role: "assistant", content: greeting }]);
+      speakText(greeting);
+      return;
+    }
 
-    const userMessage: Message = { role: "user", content: inputText };
+    const userMessage: Message = { 
+      role: "user", 
+      content: text,
+      image: imageData 
+    };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
-    setInputText("");
 
     try {
       const response = await fetch(
@@ -184,7 +158,13 @@ const Index = () => {
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
-            messages: updatedMessages,
+            messages: updatedMessages.map(msg => ({
+              role: msg.role,
+              content: msg.image ? [
+                { type: "text", text: msg.content },
+                { type: "image_url", image_url: { url: msg.image } }
+              ] : msg.content
+            })),
           }),
         }
       );
@@ -213,79 +193,150 @@ const Index = () => {
     }
   };
 
+  const handleTextSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() && !selectedImage) return;
+
+    await sendMessage(inputText || "Was ist auf diesem Bild?", selectedImage || undefined);
+    setInputText("");
+    setSelectedImage(null);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-primary">Risto KI</h1>
-          <p className="text-muted-foreground">Ihre Sprachassistentin</p>
-        </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b border-border bg-card p-4 flex items-center justify-center">
+        <h1 className="text-2xl font-bold text-primary">Risto KI</h1>
+      </header>
 
-        <div className="flex justify-center">
-          <div className="relative">
-            {isSpeaking && (
-              <div className="absolute inset-0 animate-ping rounded-full bg-green-400 opacity-75"></div>
-            )}
-            {isRecording && (
-              <div className="absolute inset-0 animate-pulse rounded-full bg-blue-400 opacity-75"></div>
-            )}
-            <Button
-              size="lg"
-              variant={isRecording ? "destructive" : "default"}
-              className="rounded-full h-32 w-32"
-              onClick={isRecording ? stopRecording : startRecording}
-            >
-              {isRecording ? (
-                <MicOff className="h-16 w-16" />
-              ) : (
-                <Mic className="h-16 w-16" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        <div className="text-center text-sm text-muted-foreground">
-          {isRecording
-            ? "Ich höre zu..."
-            : isSpeaking
-            ? "Ich spreche..."
-            : "Drücken Sie den Button um zu sprechen"}
-        </div>
-
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          {messages.map((msg, idx) => (
+      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`flex ${
+              msg.role === "user" ? "justify-end" : "justify-start"
+            }`}
+          >
             <div
-              key={idx}
-              className={`flex ${
-                msg.role === "user" ? "justify-end" : "justify-start"
+              className={`max-w-[85%] rounded-lg p-4 ${
+                msg.role === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card border border-border"
               }`}
             >
-              <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
-                }`}
-              >
-                {msg.content}
-              </div>
+              {msg.image && (
+                <img src={msg.image} alt="User upload" className="rounded-lg mb-2 max-w-full h-auto" />
+              )}
+              {msg.role === "assistant" ? (
+                <div className="space-y-2">
+                  <ReactMarkdown
+                    components={{
+                      strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
+                      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                      ul: ({ children }) => <ul className="list-disc ml-4 mb-2 space-y-1">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal ml-4 mb-2 space-y-1">{children}</ol>,
+                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="leading-relaxed">{msg.content}</p>
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </main>
 
-        <form onSubmit={handleTextSubmit} className="flex gap-2">
+      <footer className="border-t border-border bg-card p-4">
+        {selectedImage && (
+          <div className="mb-3 relative inline-block">
+            <img src={selectedImage} alt="Selected" className="h-20 rounded-lg" />
+            <Button
+              size="icon"
+              variant="destructive"
+              className="absolute -top-2 -right-2 h-6 w-6"
+              onClick={() => setSelectedImage(null)}
+            >
+              ×
+            </Button>
+          </div>
+        )}
+        
+        <form onSubmit={handleTextSubmit} className="flex gap-2 items-end">
+          <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImageIcon className="h-5 w-5" />
+            </Button>
+            
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <Camera className="h-5 w-5" />
+            </Button>
+          </div>
+
           <Input
             type="text"
-            placeholder="Oder schreiben Sie Ihre Frage hier..."
+            placeholder="Frag Risto etwas..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             className="flex-1"
           />
-          <Button type="submit" size="icon" disabled={!inputText.trim()}>
-            <Send className="h-4 w-4" />
+
+          <Button
+            type="button"
+            size="icon"
+            variant={isRecording ? "destructive" : "default"}
+            onClick={isRecording ? stopRecording : startRecording}
+            className="relative"
+          >
+            {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            {isRecording && (
+              <span className="absolute inset-0 animate-ping rounded-md bg-primary opacity-75"></span>
+            )}
+          </Button>
+
+          <Button type="submit" size="icon" disabled={!inputText.trim() && !selectedImage}>
+            <Send className="h-5 w-5" />
           </Button>
         </form>
-      </Card>
+      </footer>
     </div>
   );
 };
