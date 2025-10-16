@@ -18,6 +18,7 @@ const Index = () => {
   const [inputText, setInputText] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -65,10 +66,6 @@ const Index = () => {
   const startRecording = async () => {
     if (!hasStarted) {
       setHasStarted(true);
-      const greeting = "Guten Tag, willkommen bei der Risto KI. Wie kann ich Ihnen heute helfen?";
-      setMessages([{ role: "assistant", content: greeting }]);
-      speakText(greeting);
-      return;
     }
 
     try {
@@ -132,14 +129,6 @@ const Index = () => {
   };
 
   const sendMessage = async (text: string, imageData?: string) => {
-    if (!hasStarted) {
-      setHasStarted(true);
-      const greeting = "Guten Tag, willkommen bei der Risto KI. Wie kann ich Ihnen heute helfen?";
-      setMessages([{ role: "assistant", content: greeting }]);
-      speakText(greeting);
-      return;
-    }
-
     const userMessage: Message = { 
       role: "user", 
       content: text,
@@ -147,6 +136,7 @@ const Index = () => {
     };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
+    setIsTyping(true);
 
     try {
       const response = await fetch(
@@ -172,6 +162,7 @@ const Index = () => {
       const data = await response.json();
       
       if (data.error) {
+        setIsTyping(false);
         toast({
           title: "Fehler",
           description: data.error,
@@ -180,11 +171,13 @@ const Index = () => {
         return;
       }
 
+      setIsTyping(false);
       const assistantMessage: Message = { role: "assistant", content: data.text };
       setMessages(prev => [...prev, assistantMessage]);
       speakText(data.text);
     } catch (error) {
       console.error("Error:", error);
+      setIsTyping(false);
       toast({
         title: "Fehler",
         description: "Verbindung zur KI fehlgeschlagen",
@@ -220,6 +213,31 @@ const Index = () => {
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full space-y-8">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold text-primary">Willkommen bei Risto KI</h2>
+              <p className="text-muted-foreground">Wie kann ich Ihnen heute helfen?</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl px-4">
+              <div className="bg-card border border-border rounded-lg p-6 text-center space-y-2">
+                <div className="text-4xl">🌤️</div>
+                <h3 className="font-bold text-primary">Wetter</h3>
+                <p className="text-sm text-muted-foreground">Aktuelle Wetterinformationen für jeden Ort</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-6 text-center space-y-2">
+                <div className="text-4xl">🔍</div>
+                <h3 className="font-bold text-primary">Echtzeit-Suche</h3>
+                <p className="text-sm text-muted-foreground">Aktuelle Informationen aus dem Internet</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-6 text-center space-y-2">
+                <div className="text-4xl">📸</div>
+                <h3 className="font-bold text-primary">Bildanalyse</h3>
+                <p className="text-sm text-muted-foreground">Erkennung von Objekten und Text in Bildern</p>
+              </div>
+            </div>
+          </div>
+        )}
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -257,6 +275,17 @@ const Index = () => {
             </div>
           </div>
         ))}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-lg p-4 bg-card border border-border">
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </main>
 
