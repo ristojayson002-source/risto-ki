@@ -75,7 +75,7 @@ Du hilfst bei:
 1. **Wetterfragen** - nutze die get_weather Funktion
 2. **Aktuelle Informationen** - nutze die search_web Funktion für Echtzeitdaten und Ereignisse
 3. **Bildanalyse** - beschreibe Bilder detailliert, erkenne Objekte, Text und Szenen
-4. **Bildgenerierung** - erstelle Bilder mit der generate_image Funktion wenn Nutzer danach fragen
+4. **Bildgenerierung** - WICHTIG: Wenn ein Nutzer ein Bild möchte (z.B. "erstelle ein Bild von...", "kannst du mir ein Bild erstellen", "zeig mir ein Bild von..."), nutze SOFORT die generate_image Funktion OHNE nachzufragen. Generiere das Bild direkt basierend auf der Beschreibung.
 5. **Verkaufsautomaten-Problemen** - führe Schritt für Schritt durch Lösungen
 6. **Allgemeinen Fragen**
 
@@ -283,8 +283,20 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
 
         const finalData = await finalResponse.json();
         
+        const finalMessage = finalData.choices?.[0]?.message;
+        if (!finalMessage) {
+          console.error("No final message in response:", finalData);
+          return new Response(JSON.stringify({ 
+            error: "Keine finale Antwort von der KI erhalten"
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        
         return new Response(JSON.stringify({ 
-          text: finalData.choices[0].message.content
+          text: finalMessage.content || "",
+          image: finalMessage.images?.[0]?.image_url?.url
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -292,8 +304,19 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
     }
 
     // Check if response contains an image
-    const messageContent = data.choices[0].message.content;
-    const images = data.choices[0].message.images;
+    const responseMessage = data.choices?.[0]?.message;
+    if (!responseMessage) {
+      console.error("No message in response:", data);
+      return new Response(JSON.stringify({ 
+        error: "Keine Antwort von der KI erhalten"
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const messageContent = responseMessage.content || "";
+    const images = responseMessage.images;
     
     return new Response(JSON.stringify({ 
       text: messageContent,

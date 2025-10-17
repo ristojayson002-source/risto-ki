@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send, Camera, Image as ImageIcon } from "lucide-react";
+import { Mic, MicOff, Send, Camera, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 
@@ -214,10 +214,26 @@ const Index = () => {
     }
   };
 
+  const clearChat = () => {
+    setMessages([]);
+    setHasStarted(false);
+    window.speechSynthesis.cancel();
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card p-4 flex items-center justify-center">
+      <header className="border-b border-border bg-card p-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">Risto KI</h1>
+        {messages.length > 0 && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={clearChat}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+        )}
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
