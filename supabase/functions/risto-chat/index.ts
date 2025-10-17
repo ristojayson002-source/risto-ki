@@ -57,16 +57,27 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    let systemPrompt = `Du bist Risto KI, eine freundliche, menschlich klingende Assistentin mit Zugriff auf aktuelle Informationen und Bildanalyse.
+    // Aktuelles Datum für Echtzeitinformationen
+    const currentDate = new Date().toLocaleDateString('de-DE', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    let systemPrompt = `Du bist Risto KI, eine freundliche, menschlich klingende Assistentin mit Zugriff auf aktuelle Informationen, Bildanalyse und Bildgenerierung.
 
 WICHTIG: Du antwortest IMMER und AUSSCHLIESSLICH auf Deutsch!
 
+AKTUELLES DATUM: Heute ist ${currentDate}
+
 Du hilfst bei:
 1. **Wetterfragen** - nutze die get_weather Funktion
-2. **Aktuelle Informationen** - nutze die search_web Funktion für Echtzeitdaten und Ereignisse nach 2023
+2. **Aktuelle Informationen** - nutze die search_web Funktion für Echtzeitdaten und Ereignisse
 3. **Bildanalyse** - beschreibe Bilder detailliert, erkenne Objekte, Text und Szenen
-4. **Verkaufsautomaten-Problemen** - führe Schritt für Schritt durch Lösungen
-5. **Allgemeinen Fragen**
+4. **Bildgenerierung** - erstelle Bilder mit der generate_image Funktion wenn Nutzer danach fragen
+5. **Verkaufsautomaten-Problemen** - führe Schritt für Schritt durch Lösungen
+6. **Allgemeinen Fragen**
 
 FORMATIERUNG:
 - Nutze **fett** für wichtige Begriffe und Schlüsselwörter
@@ -98,7 +109,7 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
         type: "function",
         function: {
           name: "search_web",
-          description: "Sucht im Internet nach aktuellen Informationen. Nutze dies für Fragen zu aktuellen Ereignissen, Nachrichten oder Informationen nach 2023.",
+          description: "Sucht im Internet nach aktuellen Informationen. Nutze dies für Fragen zu aktuellen Ereignissen, Nachrichten oder Informationen.",
           parameters: {
             type: "object",
             properties: {
@@ -108,6 +119,23 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
               }
             },
             required: ["query"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "generate_image",
+          description: "Generiert ein Bild basierend auf einer Beschreibung. Nutze dies wenn Nutzer ein Bild erstellen möchten.",
+          parameters: {
+            type: "object",
+            properties: {
+              prompt: {
+                type: "string",
+                description: "Die detaillierte Beschreibung des zu erstellenden Bildes auf Englisch"
+              }
+            },
+            required: ["prompt"]
           }
         }
       }
@@ -182,6 +210,52 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
             tool_call_id: toolCall.id,
             content: searchResult
           });
+        } else if (toolCall.function.name === "generate_image") {
+          const args = JSON.parse(toolCall.function.arguments);
+          
+          // Generate image using Lovable AI
+          const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-image-preview",
+              messages: [
+                {
+                  role: "user",
+                  content: args.prompt
+                }
+              ],
+              modalities: ["image", "text"]
+            }),
+          });
+
+          if (!imageResponse.ok) {
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: "Bildgenerierung fehlgeschlagen."
+            });
+          } else {
+            const imageData = await imageResponse.json();
+            const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+            
+            if (imageUrl) {
+              toolMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: `Bild erfolgreich generiert: ${imageUrl}`
+              });
+            } else {
+              toolMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: "Bildgenerierung fehlgeschlagen - kein Bild erhalten."
+              });
+            }
+          }
         }
       }
 
@@ -217,8 +291,13 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
       }
     }
 
+    // Check if response contains an image
+    const messageContent = data.choices[0].message.content;
+    const images = data.choices[0].message.images;
+    
     return new Response(JSON.stringify({ 
-      text: data.choices[0].message.content 
+      text: messageContent,
+      image: images?.[0]?.image_url?.url
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

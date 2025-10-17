@@ -172,7 +172,11 @@ const Index = () => {
       }
 
       setIsTyping(false);
-      const assistantMessage: Message = { role: "assistant", content: data.text };
+      const assistantMessage: Message = { 
+        role: "assistant", 
+        content: data.text,
+        image: data.image // Bild von der KI generiert
+      };
       setMessages(prev => [...prev, assistantMessage]);
       speakText(data.text);
     } catch (error) {
@@ -190,9 +194,13 @@ const Index = () => {
     e.preventDefault();
     if (!inputText.trim() && !selectedImage) return;
 
-    await sendMessage(inputText || "Was ist auf diesem Bild?", selectedImage || undefined);
+    const messageText = inputText || "Was ist auf diesem Bild?";
+    const imageData = selectedImage || undefined;
+    
     setInputText("");
     setSelectedImage(null);
+    
+    await sendMessage(messageText, imageData);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,6 +272,16 @@ const Index = () => {
                       ul: ({ children }) => <ul className="list-disc ml-4 mb-2 space-y-1">{children}</ul>,
                       ol: ({ children }) => <ol className="list-decimal ml-4 mb-2 space-y-1">{children}</ol>,
                       li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      a: ({ children, href }) => (
+                        <a 
+                          href={href} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary underline hover:text-primary/80"
+                        >
+                          {children}
+                        </a>
+                      ),
                     }}
                   >
                     {msg.content}
