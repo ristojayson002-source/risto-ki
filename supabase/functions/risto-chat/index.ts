@@ -7,14 +7,37 @@ const corsHeaders = {
 
 async function searchWeb(query: string): Promise<string> {
   try {
-    const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1`);
+    const BRAVE_API_KEY = Deno.env.get("BRAVE_SEARCH_API_KEY");
+    if (!BRAVE_API_KEY) {
+      console.error('BRAVE_SEARCH_API_KEY not configured');
+      return 'Suche nicht verfügbar - API-Schlüssel fehlt.';
+    }
+
+    const response = await fetch(
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=3`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X-Subscription-Token': BRAVE_API_KEY
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Brave Search API error:', response.status, await response.text());
+      return `Suche fehlgeschlagen: ${response.status}`;
+    }
+
     const data = await response.json();
     
-    if (data.AbstractText) {
-      return data.AbstractText;
+    if (data.web?.results && data.web.results.length > 0) {
+      const results = data.web.results.slice(0, 3).map((result: any) => 
+        `${result.title}: ${result.description}`
+      ).join('\n\n');
+      return `Suchergebnisse für "${query}":\n\n${results}`;
     }
     
-    return `Ich habe nach "${query}" gesucht, aber keine detaillierten Informationen gefunden.`;
+    return `Keine aktuellen Informationen zu "${query}" gefunden.`;
   } catch (error) {
     console.error('Search error:', error);
     return 'Suche fehlgeschlagen.';
