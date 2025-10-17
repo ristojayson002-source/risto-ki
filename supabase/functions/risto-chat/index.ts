@@ -14,7 +14,7 @@ async function searchWeb(query: string): Promise<string> {
     }
 
     const response = await fetch(
-      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=3`,
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`,
       {
         headers: {
           'Accept': 'application/json',
@@ -31,16 +31,62 @@ async function searchWeb(query: string): Promise<string> {
     const data = await response.json();
     
     if (data.web?.results && data.web.results.length > 0) {
-      const results = data.web.results.slice(0, 3).map((result: any) => 
-        `${result.title}: ${result.description}`
-      ).join('\n\n');
-      return `Suchergebnisse für "${query}":\n\n${results}`;
+      const results = data.web.results.slice(0, 5).map((result: any) => 
+        `**${result.title}**\n${result.description}\nQuelle: ${result.url}`
+      ).join('\n\n---\n\n');
+      return `Aktuelle Suchergebnisse für "${query}":\n\n${results}`;
     }
     
     return `Keine aktuellen Informationen zu "${query}" gefunden.`;
   } catch (error) {
     console.error('Search error:', error);
     return 'Suche fehlgeschlagen.';
+  }
+}
+
+async function generateImage(prompt: string, apiKey: string): Promise<string | null> {
+  try {
+    console.log('Generating image with prompt:', prompt);
+    
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        modalities: ["image", "text"]
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Image generation failed:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('Image generation response:', JSON.stringify(data).slice(0, 200));
+    
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    if (imageUrl) {
+      console.log('Image generated successfully');
+      return imageUrl;
+    }
+    
+    console.error('No image URL in response');
+    return null;
+  } catch (error) {
+    console.error('Image generation error:', error);
+    return null;
   }
 }
 
@@ -57,7 +103,6 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Aktuelles Datum für Echtzeitinformationen
     const currentDate = new Date().toLocaleDateString('de-DE', { 
       weekday: 'long', 
       year: 'numeric', 
@@ -65,27 +110,31 @@ serve(async (req) => {
       day: 'numeric' 
     });
 
-    let systemPrompt = `Du bist Risto KI, eine freundliche, menschlich klingende Assistentin mit Zugriff auf aktuelle Informationen, Bildanalyse und Bildgenerierung.
+    let systemPrompt = `Du bist Risto KI, eine freundliche und kompetente KI-Assistentin.
 
-WICHTIG: Du antwortest IMMER und AUSSCHLIESSLICH auf Deutsch!
+AKTUELLES DATUM: ${currentDate}
 
-AKTUELLES DATUM: Heute ist ${currentDate}
+WICHTIGE REGELN:
+1. Antworte IMMER auf Deutsch
+2. Bei Bildwünschen (z.B. "erstelle ein Bild von...", "zeig mir ein Bild...", "generiere..."):
+   - Nutze SOFORT die generate_image Funktion
+   - KEINE Rückfragen, erstelle das Bild direkt
+   - Wandle die deutsche Beschreibung in einen detaillierten englischen Prompt um
+3. Für aktuelle Informationen nutze search_web
+4. Für Wetter nutze get_weather
 
-Du hilfst bei:
-1. **Wetterfragen** - nutze die get_weather Funktion
-2. **Aktuelle Informationen** - nutze die search_web Funktion für Echtzeitdaten und Ereignisse
-3. **Bildanalyse** - beschreibe Bilder detailliert, erkenne Objekte, Text und Szenen
-4. **Bildgenerierung** - WICHTIG: Wenn ein Nutzer ein Bild möchte (z.B. "erstelle ein Bild von...", "kannst du mir ein Bild erstellen", "zeig mir ein Bild von..."), nutze SOFORT die generate_image Funktion OHNE nachzufragen. Generiere das Bild direkt basierend auf der Beschreibung.
-5. **Verkaufsautomaten-Problemen** - führe Schritt für Schritt durch Lösungen
-6. **Allgemeinen Fragen**
+FUNKTIONEN:
+- **Bildgenerierung**: Erstelle Bilder auf Anfrage ohne Nachfragen
+- **Echtzeit-Suche**: Aktuelle Informationen aus dem Internet
+- **Wetter**: Wetterdaten für beliebige Orte
+- **Bildanalyse**: Beschreibe hochgeladene Bilder
 
 FORMATIERUNG:
-- Nutze **fett** für wichtige Begriffe und Schlüsselwörter
-- Strukturiere längere Antworten mit Absätzen
-- Verwende Listen wo sinnvoll
+- Nutze **fett** für wichtige Begriffe
+- Strukturiere Antworten mit Absätzen
+- Verwende Listen bei Bedarf
 
-Alle deine Antworten müssen auf Deutsch sein. Du sprichst natürlich, höflich und hilfreich.
-Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
+Sei hilfreich, präzise und natürlich.`;
 
     const tools = [
       {
@@ -126,13 +175,13 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
         type: "function",
         function: {
           name: "generate_image",
-          description: "Generiert ein Bild basierend auf einer Beschreibung. Nutze dies wenn Nutzer ein Bild erstellen möchten.",
+          description: "Generiert ein Bild. Nutze diese Funktion SOFORT wenn der Nutzer ein Bild möchte. Übersetze deutsche Beschreibungen ins Englische für bessere Ergebnisse.",
           parameters: {
             type: "object",
             properties: {
               prompt: {
                 type: "string",
-                description: "Die detaillierte Beschreibung des zu erstellenden Bildes auf Englisch"
+                description: "Detaillierte englische Beschreibung des Bildes (übersetze deutsche Eingaben)"
               }
             },
             required: ["prompt"]
@@ -212,49 +261,22 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
           });
         } else if (toolCall.function.name === "generate_image") {
           const args = JSON.parse(toolCall.function.arguments);
+          console.log('Image generation requested with prompt:', args.prompt);
           
-          // Generate image using Lovable AI
-          const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash-image-preview",
-              messages: [
-                {
-                  role: "user",
-                  content: args.prompt
-                }
-              ],
-              modalities: ["image", "text"]
-            }),
-          });
-
-          if (!imageResponse.ok) {
+          const imageUrl = await generateImage(args.prompt, LOVABLE_API_KEY);
+          
+          if (imageUrl) {
             toolMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: "Bildgenerierung fehlgeschlagen."
+              content: `IMAGE_GENERATED:${imageUrl}`
             });
           } else {
-            const imageData = await imageResponse.json();
-            const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-            
-            if (imageUrl) {
-              toolMessages.push({
-                role: "tool",
-                tool_call_id: toolCall.id,
-                content: `Bild erfolgreich generiert: ${imageUrl}`
-              });
-            } else {
-              toolMessages.push({
-                role: "tool",
-                tool_call_id: toolCall.id,
-                content: "Bildgenerierung fehlgeschlagen - kein Bild erhalten."
-              });
-            }
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: "Bildgenerierung fehlgeschlagen. Bitte versuche es erneut."
+            });
           }
         }
       }
@@ -294,9 +316,18 @@ Antworte direkt auf die Frage des Nutzers ohne erneute Begrüßung.`;
           });
         }
         
+        // Check if any tool message contains a generated image
+        let generatedImage = null;
+        for (const msg of toolMessages) {
+          if (msg.content.startsWith('IMAGE_GENERATED:')) {
+            generatedImage = msg.content.replace('IMAGE_GENERATED:', '');
+            break;
+          }
+        }
+        
         return new Response(JSON.stringify({ 
-          text: finalMessage.content || "",
-          image: finalMessage.images?.[0]?.image_url?.url
+          text: finalMessage.content || "Bild wurde generiert.",
+          image: generatedImage
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

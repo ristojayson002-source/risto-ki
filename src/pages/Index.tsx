@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send, Camera, Image as ImageIcon, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import ReactMarkdown from "react-markdown";
+import { ChatMessage } from "@/components/ChatMessage";
+import { ChatInput } from "@/components/ChatInput";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
 
 interface Message {
   role: "user" | "assistant";
@@ -15,13 +16,8 @@ const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState("");
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [hasStarted, setHasStarted] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -31,22 +27,24 @@ const Index = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const speakText = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Remove markdown formatting for speech
+    const cleanText = text
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/#{1,6}\s/g, '');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = "de-DE";
     utterance.rate = 0.95;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
     
-    // Try to use the best available German voice
     const voices = window.speechSynthesis.getVoices();
-    const germanVoices = voices.filter(voice => 
-      voice.lang.startsWith('de')
-    );
-    
-    // Prefer higher quality voices (often contain "Premium" or "Enhanced")
+    const germanVoices = voices.filter(voice => voice.lang.startsWith('de'));
     const premiumVoice = germanVoices.find(v => 
       v.name.includes('Premium') || v.name.includes('Enhanced') || v.name.includes('Natural')
     );
@@ -54,7 +52,6 @@ const Index = () => {
     
     if (germanVoice) {
       utterance.voice = germanVoice;
-      console.log('Using German voice:', germanVoice.name);
     }
     
     utterance.onstart = () => setIsSpeaking(true);
@@ -64,10 +61,6 @@ const Index = () => {
   };
 
   const startRecording = async () => {
-    if (!hasStarted) {
-      setHasStarted(true);
-    }
-
     try {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       if (!SpeechRecognition) {
@@ -175,10 +168,13 @@ const Index = () => {
       const assistantMessage: Message = { 
         role: "assistant", 
         content: data.text,
-        image: data.image // Bild von der KI generiert
+        image: data.image
       };
       setMessages(prev => [...prev, assistantMessage]);
-      speakText(data.text);
+      
+      if (data.text && !data.image) {
+        speakText(data.text);
+      }
     } catch (error) {
       console.error("Error:", error);
       setIsTyping(false);
@@ -190,216 +186,67 @@ const Index = () => {
     }
   };
 
-  const handleTextSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() && !selectedImage) return;
-
-    const messageText = inputText || "Was ist auf diesem Bild?";
-    const imageData = selectedImage || undefined;
-    
-    setInputText("");
-    setSelectedImage(null);
-    
-    await sendMessage(messageText, imageData);
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const clearChat = () => {
     setMessages([]);
-    setHasStarted(false);
     window.speechSynthesis.cancel();
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card p-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-primary">Risto KI</h1>
-        {messages.length > 0 && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={clearChat}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-5 w-5" />
-          </Button>
-        )}
+    <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-10 border-b border-border/50 bg-background/80 backdrop-blur-md">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Risto KI
+          </h1>
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearChat}
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-3xl font-bold text-primary">Willkommen bei Risto KI</h2>
-              <p className="text-muted-foreground">Wie kann ich Ihnen heute helfen?</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl px-4">
-              <div className="bg-card border border-border rounded-lg p-6 text-center space-y-2">
-                <div className="text-4xl">🌤️</div>
-                <h3 className="font-bold text-primary">Wetter</h3>
-                <p className="text-sm text-muted-foreground">Aktuelle Wetterinformationen für jeden Ort</p>
-              </div>
-              <div className="bg-card border border-border rounded-lg p-6 text-center space-y-2">
-                <div className="text-4xl">🔍</div>
-                <h3 className="font-bold text-primary">Echtzeit-Suche</h3>
-                <p className="text-sm text-muted-foreground">Aktuelle Informationen aus dem Internet</p>
-              </div>
-              <div className="bg-card border border-border rounded-lg p-6 text-center space-y-2">
-                <div className="text-4xl">📸</div>
-                <h3 className="font-bold text-primary">Bildanalyse</h3>
-                <p className="text-sm text-muted-foreground">Erkennung von Objekten und Text in Bildern</p>
-              </div>
-            </div>
-          </div>
-        )}
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            <div
-              className={`max-w-[85%] rounded-lg p-4 ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card border border-border"
-              }`}
-            >
-              {msg.image && (
-                <img src={msg.image} alt="User upload" className="rounded-lg mb-2 max-w-full h-auto" />
-              )}
-              {msg.role === "assistant" ? (
-                <div className="space-y-2">
-                  <ReactMarkdown
-                    components={{
-                      strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
-                      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                      ul: ({ children }) => <ul className="list-disc ml-4 mb-2 space-y-1">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal ml-4 mb-2 space-y-1">{children}</ol>,
-                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                      a: ({ children, href }) => (
-                        <a 
-                          href={href} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary underline hover:text-primary/80"
-                        >
-                          {children}
-                        </a>
-                      ),
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+      {/* Messages Area */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          {messages.length === 0 ? (
+            <WelcomeScreen />
+          ) : (
+            <div className="space-y-6">
+              {messages.map((msg, idx) => (
+                <ChatMessage key={idx} message={msg} />
+              ))}
+              {isTyping && (
+                <div className="flex justify-start animate-fade-in">
+                  <div className="max-w-[80%] rounded-2xl p-4 bg-muted/50 backdrop-blur-sm border border-border/50">
+                    <div className="flex space-x-2">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <p className="leading-relaxed">{msg.content}</p>
               )}
             </div>
-          </div>
-        ))}
-        {isTyping && (
-          <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-lg p-4 bg-card border border-border">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
+          )}
+          <div ref={messagesEndRef} />
+        </div>
       </main>
 
-      <footer className="border-t border-border bg-card p-4">
-        {selectedImage && (
-          <div className="mb-3 relative inline-block">
-            <img src={selectedImage} alt="Selected" className="h-20 rounded-lg" />
-            <Button
-              size="icon"
-              variant="destructive"
-              className="absolute -top-2 -right-2 h-6 w-6"
-              onClick={() => setSelectedImage(null)}
-            >
-              ×
-            </Button>
-          </div>
-        )}
-        
-        <form onSubmit={handleTextSubmit} className="flex gap-2 items-end">
-          <div className="flex gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageSelect}
-            />
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-            
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleImageSelect}
-            />
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              <Camera className="h-5 w-5" />
-            </Button>
-          </div>
-
-          <Input
-            type="text"
-            placeholder="Frag Risto etwas..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            className="flex-1"
-          />
-
-          <Button
-            type="button"
-            size="icon"
-            variant={isRecording ? "destructive" : "default"}
-            onClick={isRecording ? stopRecording : startRecording}
-            className="relative"
-          >
-            {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            {isRecording && (
-              <span className="absolute inset-0 animate-ping rounded-md bg-primary opacity-75"></span>
-            )}
-          </Button>
-
-          <Button type="submit" size="icon" disabled={!inputText.trim() && !selectedImage}>
-            <Send className="h-5 w-5" />
-          </Button>
-        </form>
-      </footer>
+      {/* Input Area */}
+      <ChatInput
+        onSendMessage={sendMessage}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
+        isRecording={isRecording}
+        disabled={isTyping}
+      />
     </div>
   );
 };
