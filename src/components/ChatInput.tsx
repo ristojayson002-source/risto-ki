@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send, Camera, Image as ImageIcon, X } from "lucide-react";
+import { Mic, MicOff, Send, Camera, Image as ImageIcon, X, XCircle } from "lucide-react";
 
 interface ChatInputProps {
   onSendMessage: (text: string, image?: string) => void;
@@ -9,6 +9,8 @@ interface ChatInputProps {
   onStopRecording: () => void;
   isRecording: boolean;
   disabled?: boolean;
+  onAbort?: () => void;
+  isGenerating?: boolean;
 }
 
 export const ChatInput = ({
@@ -16,7 +18,9 @@ export const ChatInput = ({
   onStartRecording,
   onStopRecording,
   isRecording,
-  disabled = false
+  disabled = false,
+  onAbort,
+  isGenerating = false
 }: ChatInputProps) => {
   const [inputText, setInputText] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -129,6 +133,18 @@ export const ChatInput = ({
             <span className="absolute inset-0 animate-ping rounded-md bg-destructive opacity-75"></span>
           )}
         </Button>
+
+        {isGenerating && onAbort && (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onAbort}
+            className="hover:bg-destructive/10 hover:text-destructive"
+          >
+            <XCircle className="h-5 w-5" />
+          </Button>
+        )}
 
         <Button
           type="submit"

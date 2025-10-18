@@ -96,12 +96,15 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, action } = await req.json();
+    const { messages } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    // Limit conversation history to last 20 messages to avoid token limits
+    const limitedMessages = messages.slice(-20);
 
     const currentDate = new Date().toLocaleDateString('de-DE', { 
       weekday: 'long', 
@@ -114,27 +117,29 @@ serve(async (req) => {
 
 AKTUELLES DATUM: ${currentDate}
 
-WICHTIGE REGELN:
+KRITISCHE REGELN:
 1. Antworte IMMER auf Deutsch
-2. Bei Bildwünschen (z.B. "erstelle ein Bild von...", "zeig mir ein Bild...", "generiere..."):
-   - Nutze SOFORT die generate_image Funktion
-   - KEINE Rückfragen, erstelle das Bild direkt
-   - Wandle die deutsche Beschreibung in einen detaillierten englischen Prompt um
-3. Für aktuelle Informationen nutze search_web
-4. Für Wetter nutze get_weather
+2. Bei Bildwünschen (z.B. "erstelle ein Bild", "zeig ein Bild", "male", "generiere"):
+   - Nutze SOFORT die generate_image Funktion ohne zu fragen
+   - Wandle deutsche Beschreibungen in detaillierte englische Prompts um
+   - Wenn gefragt ob du Bilder erstellen kannst: Antworte "Ja, natürlich! Was möchtest du sehen?"
+3. Bei Fragen zu aktuellen Ereignissen, Wetter, Nachrichten:
+   - Nutze SOFORT search_web oder get_weather
+   - KEINE Antworten aus veralteten Trainingsdaten
+4. Du KANNST Bilder erstellen und hast Zugriff auf Echtzeitinformationen
 
 FUNKTIONEN:
-- **Bildgenerierung**: Erstelle Bilder auf Anfrage ohne Nachfragen
-- **Echtzeit-Suche**: Aktuelle Informationen aus dem Internet
-- **Wetter**: Wetterdaten für beliebige Orte
+- **Bildgenerierung**: JA, du kannst Bilder erstellen
+- **Echtzeit-Suche**: Aktuelle Informationen weltweit
+- **Wetter**: Live-Wetterdaten für alle Orte
 - **Bildanalyse**: Beschreibe hochgeladene Bilder
 
 FORMATIERUNG:
 - Nutze **fett** für wichtige Begriffe
-- Strukturiere Antworten mit Absätzen
-- Verwende Listen bei Bedarf
+- Strukturiere Antworten klar
+- Kurz und präzise
 
-Sei hilfreich, präzise und natürlich.`;
+Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
 
     const tools = [
       {
@@ -200,7 +205,7 @@ Sei hilfreich, präzise und natürlich.`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages,
+          ...limitedMessages,
         ],
         tools: tools,
         tool_choice: "auto",
@@ -292,7 +297,7 @@ Sei hilfreich, präzise und natürlich.`;
             model: "google/gemini-2.5-flash",
             messages: [
               { role: "system", content: systemPrompt },
-              ...messages,
+              ...limitedMessages,
               data.choices[0].message,
               ...toolMessages
             ],

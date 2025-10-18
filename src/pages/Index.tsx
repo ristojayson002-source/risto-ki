@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { VoiceRecordingModal } from "@/components/VoiceRecordingModal";
 
 interface Message {
   role: "user" | "assistant";
@@ -17,8 +18,11 @@ const Index = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isVoiceInput, setIsVoiceInput] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
 
   const scrollToBottom = () => {
@@ -28,6 +32,12 @@ const Index = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping]);
+
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    currentUtteranceRef.current = null;
+  };
 
   const speakText = (text: string) => {
     // Remove markdown formatting for speech
@@ -57,6 +67,7 @@ const Index = () => {
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     
+    currentUtteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   };
 
@@ -72,6 +83,12 @@ const Index = () => {
         return;
       }
 
+      // Stop any ongoing speech
+      stopSpeaking();
+      
+      setShowVoiceModal(true);
+      setIsVoiceInput(true);
+
       const recognition = new SpeechRecognition();
       recognition.lang = "de-DE";
       recognition.continuous = false;
@@ -84,12 +101,16 @@ const Index = () => {
       recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
         setIsRecording(false);
+        setShowVoiceModal(false);
         await sendMessage(transcript);
+        setIsVoiceInput(false);
       };
 
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
         setIsRecording(false);
+        setShowVoiceModal(false);
+        setIsVoiceInput(false);
         toast({
           title: "Fehler",
           description: `Spracherkennung fehlgeschlagen: ${event.error}`,
@@ -99,6 +120,7 @@ const Index = () => {
 
       recognition.onend = () => {
         setIsRecording(false);
+        setShowVoiceModal(false);
       };
 
       recognitionRef.current = recognition;
@@ -106,6 +128,8 @@ const Index = () => {
     } catch (error) {
       console.error("Error starting recording:", error);
       setIsRecording(false);
+      setShowVoiceModal(false);
+      setIsVoiceInput(false);
       toast({
         title: "Fehler",
         description: "Mikrofon-Zugriff nicht möglich",
@@ -118,6 +142,8 @@ const Index = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
+      setShowVoiceModal(false);
+      setIsVoiceInput(false);
     }
   };
 
@@ -172,7 +198,8 @@ const Index = () => {
       };
       setMessages(prev => [...prev, assistantMessage]);
       
-      if (data.text && !data.image) {
+      // Only speak if this was a voice input
+      if (data.text && !data.image && isVoiceInput) {
         speakText(data.text);
       }
     } catch (error) {
@@ -188,7 +215,13 @@ const Index = () => {
 
   const clearChat = () => {
     setMessages([]);
-    window.speechSynthesis.cancel();
+    stopSpeaking();
+    setIsVoiceInput(false);
+  };
+
+  const handleAbortResponse = () => {
+    stopSpeaking();
+    setIsTyping(false);
   };
 
   return (
@@ -246,6 +279,13 @@ const Index = () => {
         onStopRecording={stopRecording}
         isRecording={isRecording}
         disabled={isTyping}
+        onAbort={handleAbortResponse}
+        isGenerating={isTyping || isSpeaking}
+      />
+
+      <VoiceRecordingModal 
+        isOpen={showVoiceModal}
+        onClose={stopRecording}
       />
     </div>
   );
