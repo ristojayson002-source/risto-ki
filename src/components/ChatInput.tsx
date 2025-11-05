@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send, Camera, Image as ImageIcon, X, XCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Mic, MicOff, Send, Camera, X, XCircle } from "lucide-react";
 
 interface ChatInputProps {
   onSendMessage: (text: string, image?: string) => void;
@@ -22,22 +22,28 @@ export const ChatInput = ({
   onAbort,
   isGenerating = false
 }: ChatInputProps) => {
-  const [inputText, setInputText] = useState("");
+  const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() && !selectedImage) return;
+  const handleSend = () => {
+    if (!input.trim() && !selectedImage) return;
 
-    const messageText = inputText || "Was ist auf diesem Bild?";
+    const messageText = input || "Was ist auf diesem Bild?";
     const imageData = selectedImage || undefined;
 
-    setInputText("");
+    setInput("");
     setSelectedImage(null);
 
     onSendMessage(messageText, imageData);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,109 +58,94 @@ export const ChatInput = ({
   };
 
   return (
-    <div className="border-t border-border/50 bg-background/80 backdrop-blur-md p-4">
-      {selectedImage && (
-        <div className="mb-3 relative inline-block animate-scale-in">
-          <img
-            src={selectedImage}
-            alt="Selected"
-            className="h-20 rounded-lg border border-border"
-          />
-          <Button
-            size="icon"
-            variant="destructive"
-            className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-            onClick={() => setSelectedImage(null)}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex gap-2 items-end max-w-4xl mx-auto">
-        <div className="flex gap-2">
+    <div className="sticky bottom-0 border-t border-border/30 bg-background/95 backdrop-blur-xl shadow-2xl">
+      <div className="max-w-4xl mx-auto px-6 py-5">
+        <div className="flex gap-3 items-end">
           <input
+            type="file"
             ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
             onChange={handleImageSelect}
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className="hover:bg-muted"
-          >
-            <ImageIcon className="h-5 w-5" />
-          </Button>
-
-          <input
-            ref={cameraInputRef}
-            type="file"
             accept="image/*"
             capture="environment"
             className="hidden"
-            onChange={handleImageSelect}
           />
+          
           <Button
-            type="button"
-            size="icon"
+            onClick={() => fileInputRef.current?.click()}
             variant="ghost"
-            onClick={() => cameraInputRef.current?.click()}
+            size="icon"
+            className="shrink-0 text-muted-foreground hover:text-primary transition-all hover:scale-110 rounded-full"
             disabled={disabled}
-            className="hover:bg-muted"
           >
             <Camera className="h-5 w-5" />
           </Button>
-        </div>
 
-        <Input
-          type="text"
-          placeholder="Frag Risto etwas..."
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          className="flex-1 bg-muted/50 border-border/50 focus-visible:ring-primary"
-          disabled={disabled}
-        />
+          <div className="flex-1 relative">
+            {selectedImage && (
+              <div className="mb-3 relative inline-block">
+                <img 
+                  src={selectedImage} 
+                  alt="Selected" 
+                  className="max-h-24 rounded-xl border-2 border-border shadow-lg"
+                />
+                <Button
+                  onClick={() => setSelectedImage(null)}
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-lg hover:scale-110 transition-all"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Nachricht an Risto..."
+              className="min-h-[60px] max-h-[200px] resize-none rounded-2xl bg-input border-border/50 focus:border-primary transition-all pr-12 shadow-inner"
+              disabled={disabled}
+            />
+          </div>
 
-        <Button
-          type="button"
-          size="icon"
-          variant={isRecording ? "destructive" : "ghost"}
-          onClick={isRecording ? onStopRecording : onStartRecording}
-          className="relative hover:bg-muted"
-          disabled={disabled}
-        >
-          {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          {isRecording && (
-            <span className="absolute inset-0 animate-ping rounded-md bg-destructive opacity-75"></span>
+          {isGenerating ? (
+            <Button
+              onClick={onAbort}
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 rounded-full"
+            >
+              <XCircle className="h-6 w-6" />
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={isRecording ? onStopRecording : onStartRecording}
+                variant="ghost"
+                size="icon"
+                className={`shrink-0 transition-all hover:scale-110 rounded-full ${
+                  isRecording 
+                    ? 'text-destructive hover:text-destructive hover:bg-destructive/10' 
+                    : 'text-muted-foreground hover:text-primary'
+                }`}
+                disabled={disabled}
+              >
+                {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              </Button>
+
+              <Button
+                onClick={handleSend}
+                disabled={disabled || (!input.trim() && !selectedImage)}
+                size="icon"
+                className="shrink-0 rounded-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all hover:scale-110 shadow-lg hover:shadow-glow disabled:opacity-50 disabled:hover:scale-100"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </>
           )}
-        </Button>
-
-        {isGenerating && onAbort && (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={onAbort}
-            className="hover:bg-destructive/10 hover:text-destructive"
-          >
-            <XCircle className="h-5 w-5" />
-          </Button>
-        )}
-
-        <Button
-          type="submit"
-          size="icon"
-          disabled={(!inputText.trim() && !selectedImage) || disabled}
-          className="bg-primary hover:bg-primary/90"
-        >
-          <Send className="h-5 w-5" />
-        </Button>
-      </form>
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import { Components } from 'react-markdown';
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +23,29 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
     document.body.removeChild(link);
   };
 
+  const markdownComponents: Components = {
+    p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+    strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
+    em: ({ children }) => <em className="italic text-muted-foreground">{children}</em>,
+    h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 text-foreground">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-xl font-bold mb-3 text-foreground">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-lg font-bold mb-2 text-foreground">{children}</h3>,
+    ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1">{children}</ol>,
+    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+    a: ({ children, href }) => (
+      <a href={href} className="text-primary hover:text-primary/80 underline transition-colors" target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    ),
+    code: ({ children }) => (
+      <code className="bg-secondary/50 px-2 py-1 rounded text-sm font-mono">{children}</code>
+    ),
+    pre: ({ children }) => (
+      <pre className="bg-secondary/50 p-4 rounded-lg overflow-x-auto mb-3">{children}</pre>
+    ),
+  };
+
   return (
     <div
       className={`flex w-full ${
@@ -29,24 +53,24 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
       } animate-fade-in`}
     >
       <div
-        className={`max-w-[80%] md:max-w-[70%] rounded-2xl p-4 ${
+        className={`max-w-[85%] rounded-2xl p-5 shadow-lg transition-all hover:shadow-xl ${
           message.role === "user"
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted/50 backdrop-blur-sm border border-border/50"
+            ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground"
+            : "bg-card border border-border/50 backdrop-blur-sm"
         }`}
       >
         {message.image && (
-          <div className="mb-3 relative group">
+          <div className="mb-4 relative group">
             <img 
               src={message.image} 
               alt={message.role === "user" ? "Hochgeladenes Bild" : "Generiertes Bild"} 
-              className="rounded-xl w-full h-auto shadow-lg"
+              className="rounded-xl w-full h-auto shadow-lg ring-2 ring-border/20"
             />
             {message.role === "assistant" && (
               <Button
                 size="sm"
                 variant="secondary"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-lg"
                 onClick={() => handleDownload(message.image!)}
               >
                 <Download className="h-4 w-4 mr-1" />
@@ -55,45 +79,9 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
             )}
           </div>
         )}
-        {message.role === "assistant" ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown
-              components={{
-                strong: ({ children }) => (
-                  <strong className="font-bold text-primary">{children}</strong>
-                ),
-                p: ({ children }) => (
-                  <p className="mb-2 last:mb-0 leading-relaxed text-foreground">
-                    {children}
-                  </p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc ml-4 mb-2 space-y-1">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal ml-4 mb-2 space-y-1">{children}</ol>
-                ),
-                li: ({ children }) => (
-                  <li className="leading-relaxed">{children}</li>
-                ),
-                a: ({ children, href }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline hover:text-primary/80"
-                  >
-                    {children}
-                  </a>
-                ),
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-          </div>
-        ) : (
-          <p className="leading-relaxed">{message.content}</p>
-        )}
+        <div className={`prose prose-sm max-w-none ${message.role === "user" ? 'prose-invert' : 'dark:prose-invert'}`}>
+          <ReactMarkdown components={markdownComponents}>{message.content}</ReactMarkdown>
+        </div>
       </div>
     </div>
   );

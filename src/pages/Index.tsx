@@ -225,11 +225,11 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-border/50 bg-background/80 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+      <header className="sticky top-0 z-10 border-b border-border/30 bg-background/95 backdrop-blur-xl">
+        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
             Risto KI
           </h1>
           {messages.length > 0 && (
@@ -237,7 +237,7 @@ const Index = () => {
               variant="ghost"
               size="icon"
               onClick={clearChat}
-              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 rounded-full"
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -247,7 +247,7 @@ const Index = () => {
 
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 ? (
             <WelcomeScreen />
           ) : (
@@ -257,11 +257,11 @@ const Index = () => {
               ))}
               {isTyping && (
                 <div className="flex justify-start animate-fade-in">
-                  <div className="max-w-[80%] rounded-2xl p-4 bg-muted/50 backdrop-blur-sm border border-border/50">
+                  <div className="max-w-[85%] rounded-2xl p-5 bg-card border border-border/30 backdrop-blur-sm shadow-lg">
                     <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      <div className="w-3 h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-3 h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-3 h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '300ms' }}></div>
                     </div>
                   </div>
                 </div>

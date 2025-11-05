@@ -14,7 +14,7 @@ async function searchWeb(query: string): Promise<string> {
     }
 
     const response = await fetch(
-      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`,
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5&freshness=pd`,
       {
         headers: {
           'Accept': 'application/json',
@@ -32,9 +32,9 @@ async function searchWeb(query: string): Promise<string> {
     
     if (data.web?.results && data.web.results.length > 0) {
       const results = data.web.results.slice(0, 5).map((result: any) => 
-        `**${result.title}**\n${result.description}\nQuelle: ${result.url}`
+        `**${result.title}**\n${result.description}\n📍 Quelle: ${result.url}`
       ).join('\n\n---\n\n');
-      return `Aktuelle Suchergebnisse für "${query}":\n\n${results}`;
+      return `🔍 **Aktuelle Suchergebnisse für "${query}":**\n\n${results}`;
     }
     
     return `Keine aktuellen Informationen zu "${query}" gefunden.`;
@@ -163,13 +163,13 @@ Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
         type: "function",
         function: {
           name: "search_web",
-          description: "Sucht im Internet nach aktuellen Informationen. Nutze dies für Fragen zu aktuellen Ereignissen, Nachrichten oder Informationen.",
+          description: "Sucht im Internet nach aktuellen Informationen. VERWENDE DIES IMMER für: Wettervorhersagen (heute, morgen, kommende Tage), aktuelle Nachrichten, Sportergebnisse, Börsenkurse und alle zeitabhängigen Informationen. Formuliere die Suchanfrage präzise.",
           parameters: {
             type: "object",
             properties: {
               query: {
                 type: "string",
-                description: "Die Suchanfrage auf Deutsch oder Englisch"
+                description: "Die detaillierte Suchanfrage (z.B. 'Wetter Berlin morgen Vorhersage', 'Nachrichten Deutschland heute')"
               }
             },
             required: ["query"]
@@ -248,7 +248,22 @@ Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
           );
           const weatherData = await weatherResponse.json();
           
-          const weatherInfo = `Aktuelles Wetter in ${args.location}: Temperatur ${weatherData.current_condition[0].temp_C}°C, ${weatherData.current_condition[0].weatherDesc[0].value}`;
+          const current = weatherData.current_condition[0];
+          const forecast = weatherData.weather || [];
+          
+          let weatherInfo = `☀️ **Wetter in ${args.location}**\n\n`;
+          weatherInfo += `🌡️ **Aktuell:** ${current.temp_C}°C, ${current.weatherDesc[0].value}\n`;
+          weatherInfo += `💨 **Wind:** ${current.windspeedKmph} km/h\n`;
+          weatherInfo += `💧 **Luftfeuchtigkeit:** ${current.humidity}%\n\n`;
+          
+          if (forecast.length > 0) {
+            weatherInfo += `📅 **Vorhersage:**\n`;
+            forecast.slice(0, 3).forEach((day: any, index: number) => {
+              const date = new Date(day.date);
+              const dayName = index === 0 ? 'Heute' : index === 1 ? 'Morgen' : date.toLocaleDateString('de-DE', { weekday: 'short' });
+              weatherInfo += `${dayName}: ${day.mintempC}°C - ${day.maxtempC}°C, ${day.hourly[4]?.weatherDesc[0]?.value || 'k.A.'}\n`;
+            });
+          }
           
           toolMessages.push({
             role: "tool",
