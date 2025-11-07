@@ -103,8 +103,17 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Limit conversation history to last 20 messages to avoid token limits
-    const limitedMessages = messages.slice(-20);
+    // Limit conversation history to last 10 messages and remove images from history to avoid token limits
+    const limitedMessages = messages.slice(-10).map((msg: any) => {
+      if (Array.isArray(msg.content)) {
+        // Remove image_url from content array to save tokens
+        return {
+          ...msg,
+          content: msg.content.filter((item: any) => item.type !== 'image_url')
+        };
+      }
+      return msg;
+    });
 
     const currentDate = new Date().toLocaleDateString('de-DE', { 
       weekday: 'long', 
