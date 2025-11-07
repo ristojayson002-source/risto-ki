@@ -177,16 +177,16 @@ Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
         }
       },
       {
-        type: "function",
+        type: "function" as const,
         function: {
           name: "generate_image",
-          description: "Generiert ein Bild. Nutze diese Funktion SOFORT wenn der Nutzer ein Bild möchte. Übersetze deutsche Beschreibungen ins Englische für bessere Ergebnisse.",
+          description: "Generiert SOFORT ein Bild wenn der Nutzer ein Bild möchte. Verwende dies bei jeder Bildanfrage ohne nachzufragen. Übersetze deutsche Beschreibungen automatisch ins Englische für bessere Ergebnisse.",
           parameters: {
             type: "object",
             properties: {
               prompt: {
                 type: "string",
-                description: "Detaillierte englische Beschreibung des Bildes (übersetze deutsche Eingaben)"
+                description: "Detaillierte englische Bildbeschreibung (übersetze deutsche Anfragen automatisch). Füge kreative Details hinzu für bessere Ergebnisse."
               }
             },
             required: ["prompt"]

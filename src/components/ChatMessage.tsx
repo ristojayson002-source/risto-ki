@@ -53,14 +53,14 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
       } animate-fade-in`}
     >
       <div
-        className={`max-w-[85%] rounded-2xl p-5 shadow-lg transition-all hover:shadow-xl ${
+        className={`max-w-[90%] sm:max-w-[85%] rounded-2xl p-3 sm:p-5 shadow-lg transition-all hover:shadow-xl ${
           message.role === "user"
             ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground"
             : "bg-card border border-border/50 backdrop-blur-sm"
         }`}
       >
         {message.image && (
-          <div className="mb-4 relative group">
+          <div className="mb-3 sm:mb-4 relative group">
             <img 
               src={message.image} 
               alt={message.role === "user" ? "Hochgeladenes Bild" : "Generiertes Bild"} 
@@ -70,16 +70,16 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
               <Button
                 size="sm"
                 variant="secondary"
-                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-lg"
+                className="absolute top-2 right-2 sm:top-3 sm:right-3 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-lg text-xs sm:text-sm"
                 onClick={() => handleDownload(message.image!)}
               >
-                <Download className="h-4 w-4 mr-1" />
-                Download
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                <span className="hidden sm:inline">Download</span>
               </Button>
             )}
           </div>
         )}
-        <div className={`prose prose-sm max-w-none ${message.role === "user" ? 'prose-invert' : 'dark:prose-invert'}`}>
+        <div className={`prose prose-sm max-w-none text-sm sm:text-base ${message.role === "user" ? 'prose-invert' : 'dark:prose-invert'}`}>
           <ReactMarkdown components={markdownComponents}>{message.content}</ReactMarkdown>
         </div>
       </div>

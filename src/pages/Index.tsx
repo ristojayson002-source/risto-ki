@@ -40,6 +40,8 @@ const Index = () => {
   };
 
   const speakText = (text: string) => {
+    if (!isVoiceInput) return; // Only speak in voice mode
+    
     // Remove markdown formatting for speech
     const cleanText = text
       .replace(/\*\*/g, '')
@@ -65,7 +67,13 @@ const Index = () => {
     }
     
     utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      // Restart recording if still in voice mode
+      if (isVoiceInput && showVoiceModal) {
+        startRecording();
+      }
+    };
     
     currentUtteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
@@ -83,11 +91,15 @@ const Index = () => {
         return;
       }
 
-      // Stop any ongoing speech
-      stopSpeaking();
+      // Stop any ongoing speech when user starts speaking
+      if (isSpeaking) {
+        stopSpeaking();
+      }
       
-      setShowVoiceModal(true);
-      setIsVoiceInput(true);
+      if (!showVoiceModal) {
+        setShowVoiceModal(true);
+        setIsVoiceInput(true);
+      }
 
       const recognition = new SpeechRecognition();
       recognition.lang = "de-DE";
@@ -101,16 +113,12 @@ const Index = () => {
       recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript;
         setIsRecording(false);
-        setShowVoiceModal(false);
         await sendMessage(transcript);
-        setIsVoiceInput(false);
       };
 
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
         setIsRecording(false);
-        setShowVoiceModal(false);
-        setIsVoiceInput(false);
         toast({
           title: "Fehler",
           description: `Spracherkennung fehlgeschlagen: ${event.error}`,
@@ -120,7 +128,10 @@ const Index = () => {
 
       recognition.onend = () => {
         setIsRecording(false);
-        setShowVoiceModal(false);
+        // Continue listening if still in voice mode and not speaking
+        if (isVoiceInput && showVoiceModal && !isSpeaking) {
+          setTimeout(() => startRecording(), 500);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -128,8 +139,6 @@ const Index = () => {
     } catch (error) {
       console.error("Error starting recording:", error);
       setIsRecording(false);
-      setShowVoiceModal(false);
-      setIsVoiceInput(false);
       toast({
         title: "Fehler",
         description: "Mikrofon-Zugriff nicht möglich",
@@ -141,10 +150,11 @@ const Index = () => {
   const stopRecording = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
-      setIsRecording(false);
-      setShowVoiceModal(false);
-      setIsVoiceInput(false);
     }
+    stopSpeaking();
+    setIsRecording(false);
+    setShowVoiceModal(false);
+    setIsVoiceInput(false);
   };
 
   const sendMessage = async (text: string, imageData?: string) => {
@@ -198,8 +208,8 @@ const Index = () => {
       };
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Only speak if this was a voice input
-      if (data.text && !data.image && isVoiceInput) {
+      // Only speak if this was a voice input and in voice mode
+      if (data.text && isVoiceInput && showVoiceModal) {
         speakText(data.text);
       }
     } catch (error) {
@@ -228,8 +238,8 @@ const Index = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-border/30 bg-background/95 backdrop-blur-xl">
-        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+        <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
+          <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
             Risto KI
           </h1>
           {messages.length > 0 && (
@@ -237,9 +247,9 @@ const Index = () => {
               variant="ghost"
               size="icon"
               onClick={clearChat}
-              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 rounded-full"
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 rounded-full h-9 w-9 sm:h-10 sm:w-10"
             >
-              <Trash2 className="h-5 w-5" />
+              <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
           )}
         </div>
@@ -247,21 +257,21 @@ const Index = () => {
 
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
           {messages.length === 0 ? (
             <WelcomeScreen />
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {messages.map((msg, idx) => (
                 <ChatMessage key={idx} message={msg} />
               ))}
               {isTyping && (
                 <div className="flex justify-start animate-fade-in">
-                  <div className="max-w-[85%] rounded-2xl p-5 bg-card border border-border/30 backdrop-blur-sm shadow-lg">
+                  <div className="max-w-[85%] rounded-2xl p-4 sm:p-5 bg-card border border-border/30 backdrop-blur-sm shadow-lg">
                     <div className="flex space-x-2">
-                      <div className="w-3 h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-3 h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-3 h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '300ms' }}></div>
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-primary rounded-full animate-bounce shadow-glow" style={{ animationDelay: '300ms' }}></div>
                     </div>
                   </div>
                 </div>
