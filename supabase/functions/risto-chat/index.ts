@@ -122,33 +122,34 @@ serve(async (req) => {
       day: 'numeric' 
     });
 
-    let systemPrompt = `Du bist Risto KI, eine freundliche und kompetente KI-Assistentin.
+    let systemPrompt = `Du bist Risto KI, eine freundliche und kompetente KI-Assistentin mit Bildgenerierungsfähigkeiten.
 
 AKTUELLES DATUM: ${currentDate}
 
-KRITISCHE REGELN:
+🎨 BILDGENERIERUNG - ABSOLUT KRITISCH:
+- Bei JEDEM Bildwunsch (z.B. "Bild von", "zeig mir", "erstelle", "male", "generiere"): SOFORT generate_image aufrufen
+- NIEMALS fragen, NIEMALS zögern, NIEMALS erklären - DIREKT generieren
+- Deutsche Beschreibungen automatisch in detaillierte englische Prompts übersetzen
+- Beispiele: "Hund" → "A beautiful dog, photorealistic, high detail, vibrant colors"
+- Nach Bildgenerierung: Kurze Bestätigung auf Deutsch
+
+WEITERE REGELN:
 1. Antworte IMMER auf Deutsch
-2. Bei Bildwünschen (z.B. "erstelle ein Bild", "zeig ein Bild", "male", "generiere"):
-   - Nutze SOFORT die generate_image Funktion ohne zu fragen
-   - Wandle deutsche Beschreibungen in detaillierte englische Prompts um
-   - Wenn gefragt ob du Bilder erstellen kannst: Antworte "Ja, natürlich! Was möchtest du sehen?"
-3. Bei Fragen zu aktuellen Ereignissen, Wetter, Nachrichten:
-   - Nutze SOFORT search_web oder get_weather
-   - KEINE Antworten aus veralteten Trainingsdaten
-4. Du KANNST Bilder erstellen und hast Zugriff auf Echtzeitinformationen
+2. Bei aktuellen Ereignissen, Wetter, Nachrichten: SOFORT search_web oder get_weather nutzen
+3. KEINE veralteten Trainingsdaten verwenden
 
 FUNKTIONEN:
-- **Bildgenerierung**: JA, du kannst Bilder erstellen
-- **Echtzeit-Suche**: Aktuelle Informationen weltweit
-- **Wetter**: Live-Wetterdaten für alle Orte
-- **Bildanalyse**: Beschreibe hochgeladene Bilder
+- **Bildgenerierung**: JA, IMMER verfügbar - nutze sie sofort
+- **Echtzeit-Suche**: Aktuelle Informationen
+- **Wetter**: Live-Wetterdaten
+- **Bildanalyse**: Beschreibe Bilder
 
 FORMATIERUNG:
-- Nutze **fett** für wichtige Begriffe
-- Strukturiere Antworten klar
+- **Fett** für wichtige Begriffe
+- Klar strukturiert
 - Kurz und präzise
 
-Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
+Handle SOFORT, keine unnötigen Fragen.`;
 
     const tools = [
       {
@@ -189,13 +190,13 @@ Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
         type: "function" as const,
         function: {
           name: "generate_image",
-          description: "Generiert SOFORT ein Bild wenn der Nutzer ein Bild möchte. Verwende dies bei jeder Bildanfrage ohne nachzufragen. Übersetze deutsche Beschreibungen automatisch ins Englische für bessere Ergebnisse.",
+          description: "KRITISCH: Rufe diese Funktion SOFORT auf wenn der Nutzer auch nur andeutet ein Bild zu wollen. Keywords: 'Bild', 'zeig', 'erstelle', 'male', 'generiere', 'Foto'. NIEMALS nachfragen, DIREKT generieren! Übersetze deutsche Beschreibungen automatisch und detailliert ins Englische.",
           parameters: {
             type: "object",
             properties: {
               prompt: {
                 type: "string",
-                description: "Detaillierte englische Bildbeschreibung (übersetze deutsche Anfragen automatisch). Füge kreative Details hinzu für bessere Ergebnisse."
+                description: "Sehr detaillierte englische Bildbeschreibung mit Style, Qualität und Details. Beispiel: 'A photorealistic golden retriever dog running in a sunny park, vibrant colors, high detail, professional photography, 4k quality'"
               }
             },
             required: ["prompt"]
@@ -335,8 +336,28 @@ Sei hilfreich, handle schnell, keine unnötigen Fragen.`;
         const finalData = await finalResponse.json();
         
         const finalMessage = finalData.choices?.[0]?.message;
-        if (!finalMessage) {
-          console.error("No final message in response:", finalData);
+        if (!finalMessage || !finalMessage.content) {
+          console.error("No final message in response:", JSON.stringify(finalData));
+          console.log("Tool messages were:", JSON.stringify(toolMessages));
+          
+          // If image was generated but no final message, create a default response
+          let generatedImage = null;
+          for (const msg of toolMessages) {
+            if (msg.content.startsWith('IMAGE_GENERATED:')) {
+              generatedImage = msg.content.replace('IMAGE_GENERATED:', '');
+              break;
+            }
+          }
+          
+          if (generatedImage) {
+            return new Response(JSON.stringify({ 
+              text: "Hier ist dein Bild! 🎨",
+              image: generatedImage
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          
           return new Response(JSON.stringify({ 
             error: "Keine finale Antwort von der KI erhalten"
           }), {
