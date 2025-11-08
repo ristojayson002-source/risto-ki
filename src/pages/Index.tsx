@@ -40,9 +40,15 @@ const Index = () => {
   };
 
   const speakText = (text: string) => {
-    if (!isVoiceInput) return; // Only speak in voice mode
-    
-    // Remove markdown formatting for speech
+    if (!isVoiceInput || !showVoiceModal) return;
+
+    stopSpeaking();
+
+    if (!window.speechSynthesis) {
+      console.error('Speech synthesis not supported');
+      return;
+    }
+
     const cleanText = text
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
@@ -51,100 +57,105 @@ const Index = () => {
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = "de-DE";
-    utterance.rate = 0.95;
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
-    
-    const voices = window.speechSynthesis.getVoices();
-    const germanVoices = voices.filter(voice => voice.lang.startsWith('de'));
-    const premiumVoice = germanVoices.find(v => 
-      v.name.includes('Premium') || v.name.includes('Enhanced') || v.name.includes('Natural')
-    );
-    const germanVoice = premiumVoice || germanVoices.find(v => v.lang === 'de-DE') || germanVoices[0];
-    
-    if (germanVoice) {
-      utterance.voice = germanVoice;
-    }
-    
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      // Restart recording if still in voice mode
-      if (isVoiceInput && showVoiceModal) {
-        startRecording();
+
+    const setVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const germanVoice = voices.find(voice => voice.lang.startsWith('de'));
+      if (germanVoice) {
+        utterance.voice = germanVoice;
       }
     };
-    
-    currentUtteranceRef.current = utterance;
+
+    if (window.speechSynthesis.getVoices().length > 0) {
+      setVoice();
+    } else {
+      window.speechSynthesis.onvoiceschanged = setVoice;
+    }
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      if (isVoiceInput && showVoiceModal) {
+        setTimeout(() => startRecording(), 300);
+      }
+    };
+
+    utterance.onerror = () => setIsSpeaking(false);
+
     window.speechSynthesis.speak(utterance);
+    currentUtteranceRef.current = utterance;
   };
 
   const startRecording = async () => {
     try {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      if (!SpeechRecognition) {
-        toast({
-          title: "Fehler",
-          description: "Spracherkennung wird nicht unterstützt",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Stop any ongoing speech when user starts speaking
-      if (isSpeaking) {
-        stopSpeaking();
-      }
-      
-      if (!showVoiceModal) {
-        setShowVoiceModal(true);
-        setIsVoiceInput(true);
-      }
-
-      const recognition = new SpeechRecognition();
-      recognition.lang = "de-DE";
-      recognition.continuous = false;
-      recognition.interimResults = false;
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-      };
-
-      recognition.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setIsRecording(false);
-        await sendMessage(transcript);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        setIsRecording(false);
-        toast({
-          title: "Fehler",
-          description: `Spracherkennung fehlgeschlagen: ${event.error}`,
-          variant: "destructive",
-        });
-      };
-
-      recognition.onend = () => {
-        setIsRecording(false);
-        // Continue listening if still in voice mode and not speaking
-        if (isVoiceInput && showVoiceModal && !isSpeaking) {
-          setTimeout(() => startRecording(), 500);
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
+      await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (error) {
-      console.error("Error starting recording:", error);
-      setIsRecording(false);
+      console.error('Microphone permission denied:', error);
       toast({
-        title: "Fehler",
-        description: "Mikrofon-Zugriff nicht möglich",
+        title: "Mikrofon-Zugriff erforderlich",
+        description: "Bitte erlauben Sie den Mikrofon-Zugriff",
         variant: "destructive",
       });
+      return;
     }
+
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({
+        title: "Fehler",
+        description: "Spracherkennung wird nicht unterstützt",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+    
+    if (!showVoiceModal) {
+      setShowVoiceModal(true);
+      setIsVoiceInput(true);
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "de-DE";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setIsRecording(false);
+      if (transcript.trim()) {
+        await sendMessage(transcript);
+      }
+    };
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsRecording(false);
+      if (isVoiceInput && showVoiceModal) {
+        setTimeout(() => startRecording(), 1000);
+      }
+    };
+    recognition.onend = () => {
+      setIsRecording(false);
+      if (isVoiceInput && showVoiceModal && !isSpeaking) {
+        setTimeout(() => startRecording(), 300);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
   };
 
   const stopRecording = () => {
@@ -240,7 +251,7 @@ const Index = () => {
       <header className="sticky top-0 z-10 border-b border-border/30 bg-background/95 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
-            Risto KI
+            Risto
           </h1>
           {messages.length > 0 && (
             <Button

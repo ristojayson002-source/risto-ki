@@ -1,7 +1,13 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Send, Camera, X, XCircle } from "lucide-react";
+import { Mic, MicOff, Send, Plus, X, Camera, Image as ImageIcon } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 interface ChatInputProps {
   onSendMessage: (text: string, image?: string) => void;
@@ -24,7 +30,9 @@ export const ChatInput = ({
 }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showMediaSheet, setShowMediaSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = () => {
@@ -52,9 +60,18 @@ export const ChatInput = ({
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result as string);
+        setShowMediaSheet(false);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleCameraClick = () => {
+    cameraInputRef.current?.click();
+  };
+
+  const handleGalleryClick = () => {
+    fileInputRef.current?.click();
   };
 
   return (
@@ -66,18 +83,25 @@ export const ChatInput = ({
             ref={fileInputRef}
             onChange={handleImageSelect}
             accept="image/*"
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={cameraInputRef}
+            onChange={handleImageSelect}
+            accept="image/*"
             capture="environment"
             className="hidden"
           />
           
           <Button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowMediaSheet(true)}
             variant="ghost"
             size="icon"
             className="shrink-0 text-muted-foreground hover:text-primary transition-all hover:scale-110 rounded-full h-9 w-9 sm:h-10 sm:w-10"
             disabled={disabled}
           >
-            <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
 
           <div className="flex-1 relative">
@@ -116,7 +140,7 @@ export const ChatInput = ({
               size="icon"
               className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 rounded-full h-9 w-9 sm:h-10 sm:w-10"
             >
-              <XCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+              <X className="h-5 w-5 sm:h-6 sm:w-6" />
             </Button>
           ) : (
             <>
@@ -146,6 +170,32 @@ export const ChatInput = ({
           )}
         </div>
       </div>
+
+      <Sheet open={showMediaSheet} onOpenChange={setShowMediaSheet}>
+        <SheetContent side="bottom" className="bg-background border-border/50">
+          <SheetHeader>
+            <SheetTitle className="text-foreground">Bild hinzufügen</SheetTitle>
+          </SheetHeader>
+          <div className="grid grid-cols-2 gap-4 py-6">
+            <Button
+              onClick={handleCameraClick}
+              variant="outline"
+              className="h-24 flex-col gap-2 border-border/50 hover:border-primary/50 hover:bg-primary/5"
+            >
+              <Camera className="h-8 w-8" />
+              <span>Kamera</span>
+            </Button>
+            <Button
+              onClick={handleGalleryClick}
+              variant="outline"
+              className="h-24 flex-col gap-2 border-border/50 hover:border-primary/50 hover:bg-primary/5"
+            >
+              <ImageIcon className="h-8 w-8" />
+              <span>Galerie</span>
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

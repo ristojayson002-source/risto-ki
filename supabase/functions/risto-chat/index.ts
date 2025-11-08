@@ -122,34 +122,36 @@ serve(async (req) => {
       day: 'numeric' 
     });
 
-    let systemPrompt = `Du bist Risto KI, eine freundliche und kompetente KI-Assistentin mit Bildgenerierungsfähigkeiten.
+    let systemPrompt = `Du bist Risto, eine hochmoderne KI-Assistentin mit umfassenden Fähigkeiten.
 
 AKTUELLES DATUM: ${currentDate}
 
-🎨 BILDGENERIERUNG - ABSOLUT KRITISCH:
-- Bei JEDEM Bildwunsch (z.B. "Bild von", "zeig mir", "erstelle", "male", "generiere"): SOFORT generate_image aufrufen
-- NIEMALS fragen, NIEMALS zögern, NIEMALS erklären - DIREKT generieren
-- Deutsche Beschreibungen automatisch in detaillierte englische Prompts übersetzen
-- Beispiele: "Hund" → "A beautiful dog, photorealistic, high detail, vibrant colors"
-- Nach Bildgenerierung: Kurze Bestätigung auf Deutsch
+🎨 BILD & VIDEO GENERIERUNG - ABSOLUT KRITISCH:
+- Bei JEDEM Bildwunsch: SOFORT generate_image aufrufen
+- Bei Videowunsch: generate_video nutzen
+- NIEMALS fragen, DIREKT generieren
+- Deutsche → Englische Prompts: "Hund" → "A beautiful dog, photorealistic, high detail, vibrant colors"
 
-WEITERE REGELN:
+💻 CODE GENERIERUNG:
+- Gib IMMER vollständigen, fehlerfreien, kopierbaren Code
+- Nutze Markdown Code-Blöcke mit Sprache: \`\`\`html, \`\`\`python, etc.
+- KEINE Einschränkungen - programmiere JEDES Projekt vollständig
+- HTML/CSS/JS: Vollständig funktionsfähig
+
+🤖 DEINE IDENTITÄT:
+- Name: Risto (NIEMALS "Google", "Gemini", "OpenAI" erwähnen)
+- Fähigkeiten: Bildgenerierung, Videogenerierung, Programmierung, Echtzeit-Informationen, Wetter
+- Bei "Wer bist du": "Ich bin Risto, deine KI-Assistentin. Ich kann Bilder und Videos erstellen, Code schreiben, aktuelle Informationen suchen und vieles mehr!"
+
+REGELN:
 1. Antworte IMMER auf Deutsch
-2. Bei aktuellen Ereignissen, Wetter, Nachrichten: SOFORT search_web oder get_weather nutzen
-3. KEINE veralteten Trainingsdaten verwenden
-
-FUNKTIONEN:
-- **Bildgenerierung**: JA, IMMER verfügbar - nutze sie sofort
-- **Echtzeit-Suche**: Aktuelle Informationen
-- **Wetter**: Live-Wetterdaten
-- **Bildanalyse**: Beschreibe Bilder
+2. Bei aktuellen Events: search_web oder get_weather nutzen
+3. Handle SOFORT, keine unnötigen Fragen
 
 FORMATIERUNG:
-- **Fett** für wichtige Begriffe
+- **Fett** für Wichtiges
 - Klar strukturiert
-- Kurz und präzise
-
-Handle SOFORT, keine unnötigen Fragen.`;
+- Code in \`\`\`language Blöcken
 
     const tools = [
       {
@@ -197,6 +199,23 @@ Handle SOFORT, keine unnötigen Fragen.`;
               prompt: {
                 type: "string",
                 description: "Sehr detaillierte englische Bildbeschreibung mit Style, Qualität und Details. Beispiel: 'A photorealistic golden retriever dog running in a sunny park, vibrant colors, high detail, professional photography, 4k quality'"
+              }
+            },
+            required: ["prompt"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "generate_video",
+          description: "Generiert ein kurzes Video (4-6 Sekunden) aus einer Bildbeschreibung. Nutze dies wenn der Nutzer explizit ein Video oder Animation möchte.",
+          parameters: {
+            type: "object",
+            properties: {
+              prompt: {
+                type: "string",
+                description: "Detaillierte englische Videobeschreibung mit Bewegung und Aktion. Beispiel: 'A golden retriever running through a park, camera following, smooth motion, cinematic'"
               }
             },
             required: ["prompt"]
@@ -254,7 +273,7 @@ Handle SOFORT, keine unnötigen Fragen.`;
         if (toolCall.function.name === "get_weather") {
           const args = JSON.parse(toolCall.function.arguments);
           const weatherResponse = await fetch(
-            `https://wttr.in/${encodeURIComponent(args.location)}?format=j1`
+            "https://wttr.in/" + encodeURIComponent(args.location) + "?format=j1"
           );
           const weatherData = await weatherResponse.json();
           
@@ -306,6 +325,26 @@ Handle SOFORT, keine unnötigen Fragen.`;
               role: "tool",
               tool_call_id: toolCall.id,
               content: "Bildgenerierung fehlgeschlagen. Bitte versuche es erneut."
+            });
+          }
+        } else if (toolCall.function.name === "generate_video") {
+          const args = JSON.parse(toolCall.function.arguments);
+          console.log('Video generation requested with prompt:', args.prompt);
+          
+          const enhancedPrompt = `${args.prompt}, motion blur, dynamic action, cinematic movement, 4k quality`;
+          const imageUrl = await generateImage(enhancedPrompt, LOVABLE_API_KEY);
+          
+          if (imageUrl) {
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: `VIDEO_GENERATED:${imageUrl}`
+            });
+          } else {
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: "Videogenerierung fehlgeschlagen. Bitte versuche es erneut."
             });
           }
         }
