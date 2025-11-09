@@ -95,6 +95,12 @@ const Index = () => {
     currentUtteranceRef.current = utterance;
   };
 
+  const handleTranscript = (text: string) => {
+    if (text) {
+      sendMessage(text);
+    }
+  };
+
   const startRecording = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -307,6 +313,7 @@ const Index = () => {
       <VoiceRecordingModal 
         isOpen={showVoiceModal}
         onClose={stopRecording}
+        onTranscript={handleTranscript}
       />
     </div>
   );

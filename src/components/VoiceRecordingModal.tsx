@@ -1,13 +1,95 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MicOff } from "lucide-react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface VoiceRecordingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onTranscript: (text: string) => void;
 }
 
-export const VoiceRecordingModal = ({ isOpen, onClose }: VoiceRecordingModalProps) => {
+export const VoiceRecordingModal = ({ isOpen, onClose, onTranscript }: VoiceRecordingModalProps) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+      
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          try {
+            const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+              body: { audio: base64 }
+            });
+
+            if (error) throw error;
+            
+            if (data?.text) {
+              onTranscript(data.text);
+              onClose();
+            }
+          } catch (err) {
+            console.error('Transcription error:', err);
+            toast.error('Fehler bei der Spracherkennung');
+          }
+        };
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      toast.error('Bitte erlaube den Zugriff auf das Mikrofon');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && !isRecording) {
+      startRecording();
+    }
+    
+    return () => {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+      }
+    };
+  }, [isOpen]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md bg-background border-border/50 shadow-2xl">
@@ -27,7 +109,10 @@ export const VoiceRecordingModal = ({ isOpen, onClose }: VoiceRecordingModalProp
           </div>
 
           <Button
-            onClick={onClose}
+            onClick={() => {
+              stopRecording();
+              onClose();
+            }}
             size="lg"
             variant="outline"
             className="gap-2 rounded-full px-6 sm:px-8 hover:scale-105 transition-all border-border/50 hover:border-primary/50 text-sm sm:text-base"

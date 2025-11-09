@@ -51,7 +51,7 @@ async function generateImage(prompt: string, apiKey: string): Promise<string | n
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "Authorization": "Bearer " + apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -122,37 +122,30 @@ serve(async (req) => {
       day: 'numeric' 
     });
 
-    let systemPrompt = `Du bist Risto, eine hochmoderne KI-Assistentin mit umfassenden Fähigkeiten.
-
-AKTUELLES DATUM: ${currentDate}
-
-🎨 BILD & VIDEO GENERIERUNG - ABSOLUT KRITISCH:
-- Bei JEDEM Bildwunsch: SOFORT generate_image aufrufen
-- Bei Videowunsch: generate_video nutzen
-- NIEMALS fragen, DIREKT generieren
-- Deutsche → Englische Prompts: "Hund" → "A beautiful dog, photorealistic, high detail, vibrant colors"
-
-💻 CODE GENERIERUNG:
-- Gib IMMER vollständigen, fehlerfreien, kopierbaren Code
-- Nutze Markdown Code-Blöcke mit Sprache: \`\`\`html, \`\`\`python, etc.
-- KEINE Einschränkungen - programmiere JEDES Projekt vollständig
-- HTML/CSS/JS: Vollständig funktionsfähig
-
-🤖 DEINE IDENTITÄT:
-- Name: Risto (NIEMALS "Google", "Gemini", "OpenAI" erwähnen)
-- Fähigkeiten: Bildgenerierung, Videogenerierung, Programmierung, Echtzeit-Informationen, Wetter
-- Bei "Wer bist du": "Ich bin Risto, deine KI-Assistentin. Ich kann Bilder und Videos erstellen, Code schreiben, aktuelle Informationen suchen und vieles mehr!"
-
-REGELN:
-1. Antworte IMMER auf Deutsch
-2. Bei aktuellen Events: search_web oder get_weather nutzen
-3. Handle SOFORT, keine unnötigen Fragen
-
-FORMATIERUNG:
-- **Fett** für Wichtiges
-- Klar strukturiert
-- Code in \`\`\`language Blöcken
-
+    const systemPrompt = "Du bist Risto, eine hochmoderne Assistentin mit umfassenden Fähigkeiten.\n\n" +
+      "AKTUELLES DATUM: " + currentDate + "\n\n" +
+      "🎨 BILD & VIDEO GENERIERUNG - ABSOLUT KRITISCH:\n" +
+      "- Bei JEDEM Bildwunsch: SOFORT generate_image aufrufen\n" +
+      "- Bei Videowunsch: generate_video nutzen\n" +
+      "- NIEMALS fragen, DIREKT generieren\n" +
+      "- Deutsche → Englische Prompts: \"Hund\" → \"A beautiful dog, photorealistic, high detail, vibrant colors\"\n\n" +
+      "💻 CODE GENERIERUNG:\n" +
+      "- Gib IMMER vollständigen, fehlerfreien, kopierbaren Code\n" +
+      "- Nutze Markdown Code-Blöcke mit Sprache: ```html, ```python, etc.\n" +
+      "- KEINE Einschränkungen - programmiere JEDES Projekt vollständig\n" +
+      "- HTML/CSS/JS: Vollständig funktionsfähig\n\n" +
+      "🤖 DEINE IDENTITÄT:\n" +
+      "- Name: Risto (NIEMALS \"Google\", \"Gemini\", \"OpenAI\" erwähnen)\n" +
+      "- Fähigkeiten: Bildgenerierung, Videogenerierung, Programmierung, Echtzeit-Informationen, Wetter\n" +
+      "- Bei \"Wer bist du\": \"Ich bin Risto, deine Assistentin. Ich kann Bilder und Videos erstellen, Code schreiben, aktuelle Informationen suchen und vieles mehr!\"\n\n" +
+      "REGELN:\n" +
+      "1. Antworte IMMER auf Deutsch\n" +
+      "2. Bei aktuellen Events: search_web oder get_weather nutzen\n" +
+      "3. Handle SOFORT, keine unnötigen Fragen\n\n" +
+      "FORMATIERUNG:\n" +
+      "- **Fett** für Wichtiges\n" +
+      "- Klar strukturiert\n" +
+      "- Code in ```language Blöcken\n";
     const tools = [
       {
         type: "function",
@@ -227,7 +220,7 @@ FORMATIERUNG:
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": "Bearer " + LOVABLE_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -280,17 +273,17 @@ FORMATIERUNG:
           const current = weatherData.current_condition[0];
           const forecast = weatherData.weather || [];
           
-          let weatherInfo = `☀️ **Wetter in ${args.location}**\n\n`;
-          weatherInfo += `🌡️ **Aktuell:** ${current.temp_C}°C, ${current.weatherDesc[0].value}\n`;
-          weatherInfo += `💨 **Wind:** ${current.windspeedKmph} km/h\n`;
-          weatherInfo += `💧 **Luftfeuchtigkeit:** ${current.humidity}%\n\n`;
+          let weatherInfo = "☀️ **Wetter in " + args.location + "**\n\n";
+          weatherInfo += "🌡️ **Aktuell:** " + current.temp_C + "°C, " + current.weatherDesc[0].value + "\n";
+          weatherInfo += "💨 **Wind:** " + current.windspeedKmph + " km/h\n";
+          weatherInfo += "💧 **Luftfeuchtigkeit:** " + current.humidity + "%\n\n";
           
           if (forecast.length > 0) {
-            weatherInfo += `📅 **Vorhersage:**\n`;
+            weatherInfo += "📅 **Vorhersage:**\n";
             forecast.slice(0, 3).forEach((day: any, index: number) => {
               const date = new Date(day.date);
               const dayName = index === 0 ? 'Heute' : index === 1 ? 'Morgen' : date.toLocaleDateString('de-DE', { weekday: 'short' });
-              weatherInfo += `${dayName}: ${day.mintempC}°C - ${day.maxtempC}°C, ${day.hourly[4]?.weatherDesc[0]?.value || 'k.A.'}\n`;
+              weatherInfo += dayName + ": " + day.mintempC + "°C - " + day.maxtempC + "°C, " + (day.hourly[4]?.weatherDesc[0]?.value || 'k.A.') + "\n";
             });
           }
           
@@ -318,7 +311,7 @@ FORMATIERUNG:
             toolMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: `IMAGE_GENERATED:${imageUrl}`
+              content: "IMAGE_GENERATED:" + imageUrl
             });
           } else {
             toolMessages.push({
@@ -331,14 +324,14 @@ FORMATIERUNG:
           const args = JSON.parse(toolCall.function.arguments);
           console.log('Video generation requested with prompt:', args.prompt);
           
-          const enhancedPrompt = `${args.prompt}, motion blur, dynamic action, cinematic movement, 4k quality`;
+          const enhancedPrompt = args.prompt + ", motion blur, dynamic action, cinematic movement, 4k quality";
           const imageUrl = await generateImage(enhancedPrompt, LOVABLE_API_KEY);
           
           if (imageUrl) {
             toolMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: `VIDEO_GENERATED:${imageUrl}`
+              content: "VIDEO_GENERATED:" + imageUrl
             });
           } else {
             toolMessages.push({
@@ -354,7 +347,7 @@ FORMATIERUNG:
         const finalResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Authorization": "Bearer " + LOVABLE_API_KEY,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -397,6 +390,25 @@ FORMATIERUNG:
             });
           }
           
+          // Check for generated video
+          let generatedVideo = null;
+          for (const msg of toolMessages) {
+            if (msg.content.startsWith('VIDEO_GENERATED:')) {
+              generatedVideo = msg.content.replace('VIDEO_GENERATED:', '');
+              break;
+            }
+          }
+          
+          if (generatedVideo) {
+            return new Response(JSON.stringify({ 
+              text: "Hier ist dein Video! 🎬",
+              image: generatedVideo,
+              isVideo: true
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          
           return new Response(JSON.stringify({ 
             error: "Keine finale Antwort von der KI erhalten"
           }), {
@@ -405,18 +417,24 @@ FORMATIERUNG:
           });
         }
         
-        // Check if any tool message contains a generated image
+        // Check if any tool message contains a generated image or video
         let generatedImage = null;
+        let isVideo = false;
         for (const msg of toolMessages) {
           if (msg.content.startsWith('IMAGE_GENERATED:')) {
             generatedImage = msg.content.replace('IMAGE_GENERATED:', '');
+            break;
+          } else if (msg.content.startsWith('VIDEO_GENERATED:')) {
+            generatedImage = msg.content.replace('VIDEO_GENERATED:', '');
+            isVideo = true;
             break;
           }
         }
         
         return new Response(JSON.stringify({ 
-          text: finalMessage.content || "Bild wurde generiert.",
-          image: generatedImage
+          text: finalMessage.content || (isVideo ? "Video wurde generiert." : "Bild wurde generiert."),
+          image: generatedImage,
+          isVideo: isVideo
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
