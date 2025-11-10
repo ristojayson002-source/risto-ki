@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
-import { VoiceRecordingModal } from "@/components/VoiceRecordingModal";
+import { VoiceAssistantModal } from "@/components/VoiceAssistantModal";
 
 interface Message {
   role: "user" | "assistant";
@@ -174,10 +174,17 @@ const Index = () => {
     setIsVoiceInput(false);
   };
 
-  const sendMessage = async (text: string, imageData?: string) => {
+  const sendMessage = async (text: string, imageData?: string, file?: File) => {
+    let finalText = text;
+    
+    // If file is provided, add context about the file
+    if (file) {
+      finalText = text + `\n\n[Datei hochgeladen: ${file.name}, Typ: ${file.type}, Größe: ${(file.size / 1024).toFixed(2)} KB]`;
+    }
+    
     const userMessage: Message = { 
       role: "user", 
-      content: text,
+      content: finalText,
       image: imageData 
     };
     const updatedMessages = [...messages, userMessage];
@@ -310,10 +317,11 @@ const Index = () => {
         isGenerating={isTyping || isSpeaking}
       />
 
-      <VoiceRecordingModal 
+      <VoiceAssistantModal 
         isOpen={showVoiceModal}
         onClose={stopRecording}
         onTranscript={handleTranscript}
+        onSendMessage={sendMessage}
       />
     </div>
   );

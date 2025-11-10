@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 
 interface ChatInputProps {
-  onSendMessage: (text: string, image?: string) => void;
+  onSendMessage: (text: string, image?: string, file?: File) => void;
   onStartRecording: () => void;
   onStopRecording: () => void;
   isRecording: boolean;
@@ -30,21 +30,52 @@ export const ChatInput = ({
 }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showMediaSheet, setShowMediaSheet] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = () => {
-    if (!input.trim() && !selectedImage) return;
+    if (!input.trim() && !selectedImage && !selectedFile) return;
 
-    const messageText = input || "Was ist auf diesem Bild?";
+    const messageText = input || (selectedImage ? "Was ist auf diesem Bild?" : selectedFile ? "Bitte bearbeite diese Datei" : "");
     const imageData = selectedImage || undefined;
 
     setInput("");
     setSelectedImage(null);
 
-    onSendMessage(messageText, imageData);
+    onSendMessage(messageText, imageData, selectedFile || undefined);
+    setSelectedFile(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setSelectedImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setSelectedFile(file);
+      }
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -77,7 +108,12 @@ export const ChatInput = ({
   return (
     <div className="sticky bottom-0 border-t border-border/30 bg-background/95 backdrop-blur-xl shadow-2xl">
       <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 sm:py-5">
-        <div className="flex gap-2 sm:gap-3 items-end">
+        <div 
+          className={`flex gap-2 sm:gap-3 items-end transition-all ${isDragging ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <input
             type="file"
             ref={fileInputRef}
@@ -114,6 +150,19 @@ export const ChatInput = ({
                 />
                 <Button
                   onClick={() => setSelectedImage(null)}
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-6 w-6 sm:h-7 sm:w-7 rounded-full shadow-lg hover:scale-110 transition-all"
+                >
+                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Button>
+              </div>
+            )}
+            {selectedFile && (
+              <div className="mb-2 sm:mb-3 relative inline-block bg-secondary/50 px-3 py-2 rounded-lg">
+                <span className="text-sm">{selectedFile.name}</span>
+                <Button
+                  onClick={() => setSelectedFile(null)}
                   variant="destructive"
                   size="icon"
                   className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-6 w-6 sm:h-7 sm:w-7 rounded-full shadow-lg hover:scale-110 transition-all"
@@ -160,7 +209,7 @@ export const ChatInput = ({
 
               <Button
                 onClick={handleSend}
-                disabled={disabled || (!input.trim() && !selectedImage)}
+                disabled={disabled || (!input.trim() && !selectedImage && !selectedFile)}
                 size="icon"
                 className="shrink-0 rounded-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all hover:scale-110 shadow-lg hover:shadow-glow disabled:opacity-50 disabled:hover:scale-100 h-9 w-9 sm:h-10 sm:w-10"
               >

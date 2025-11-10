@@ -129,6 +129,10 @@ serve(async (req) => {
       "- Bei Videowunsch: generate_video nutzen\n" +
       "- NIEMALS fragen, DIREKT generieren\n" +
       "- Deutsche → Englische Prompts: \"Hund\" → \"A beautiful dog, photorealistic, high detail, vibrant colors\"\n\n" +
+      "🎭 3D-DESIGN & DATEIKONVERTIERUNG:\n" +
+      "- Bei 3D-Wünschen (Charakter, Blume, Objekt): generate_3d_model nutzen\n" +
+      "- Beschreibe detailliert was erstellt werden soll\n" +
+      "- Bei Dateikonvertierung: convert_file nutzen\n\n" +
       "💻 CODE GENERIERUNG:\n" +
       "- Gib IMMER vollständigen, fehlerfreien, kopierbaren Code\n" +
       "- Nutze Markdown Code-Blöcke mit Sprache: ```html, ```python, etc.\n" +
@@ -136,8 +140,8 @@ serve(async (req) => {
       "- HTML/CSS/JS: Vollständig funktionsfähig\n\n" +
       "🤖 DEINE IDENTITÄT:\n" +
       "- Name: Risto (NIEMALS \"Google\", \"Gemini\", \"OpenAI\" erwähnen)\n" +
-      "- Fähigkeiten: Bildgenerierung, Videogenerierung, Programmierung, Echtzeit-Informationen, Wetter\n" +
-      "- Bei \"Wer bist du\": \"Ich bin Risto, deine Assistentin. Ich kann Bilder und Videos erstellen, Code schreiben, aktuelle Informationen suchen und vieles mehr!\"\n\n" +
+      "- Fähigkeiten: Bildgenerierung, Videogenerierung, 3D-Design, Dateikonvertierung, Programmierung, Echtzeit-Informationen\n" +
+      "- Bei \"Wer bist du\": \"Ich bin Risto! Ich kann Bilder und Videos erstellen, 3D-Modelle designen, Dateien konvertieren, Code schreiben und vieles mehr!\"\n\n" +
       "REGELN:\n" +
       "1. Antworte IMMER auf Deutsch\n" +
       "2. Bei aktuellen Events: search_web oder get_weather nutzen\n" +
@@ -212,6 +216,53 @@ serve(async (req) => {
               }
             },
             required: ["prompt"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "generate_3d_model",
+          description: "Erstellt ein 3D-Modell basierend auf der Beschreibung. Nutze dies für 3D-Design-Anfragen wie Charaktere, Objekte, Blumen, etc.",
+          parameters: {
+            type: "object",
+            properties: {
+              description: {
+                type: "string",
+                description: "Detaillierte Beschreibung des 3D-Modells. Beispiel: 'A female character with long hair and casual clothing' oder 'A realistic rose flower with petals and stem'"
+              },
+              modelType: {
+                type: "string",
+                description: "Art des Modells: character, object, plant, animal",
+                enum: ["character", "object", "plant", "animal"]
+              }
+            },
+            required: ["description", "modelType"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "convert_file",
+          description: "Konvertiert eine Datei von einem Format in ein anderes. WICHTIG: Aktuell nur Simulation - echte Konvertierung erfordert externe Services.",
+          parameters: {
+            type: "object",
+            properties: {
+              sourceFormat: {
+                type: "string",
+                description: "Quellformat der Datei (z.B. max, obj, fbx, stl, blend)"
+              },
+              targetFormat: {
+                type: "string",
+                description: "Zielformat der Datei (z.B. fbx, obj, stl, gltf)"
+              },
+              fileName: {
+                type: "string",
+                description: "Name der zu konvertierenden Datei"
+              }
+            },
+            required: ["sourceFormat", "targetFormat", "fileName"]
           }
         }
       }
@@ -340,6 +391,54 @@ serve(async (req) => {
               content: "Videogenerierung fehlgeschlagen. Bitte versuche es erneut."
             });
           }
+        } else if (toolCall.function.name === "generate_3d_model") {
+          const args = JSON.parse(toolCall.function.arguments);
+          console.log('3D model generation requested:', args);
+          
+          // Generiere ein Placeholder-Bild des 3D-Modells
+          const modelPrompt = "A professional 3D render of " + args.description + ", high quality, studio lighting, detailed textures, realistic materials, 4k quality";
+          const previewUrl = await generateImage(modelPrompt, LOVABLE_API_KEY);
+          
+          if (previewUrl) {
+            const message = "3D_MODEL_GENERATED:" + previewUrl + "\n\n" +
+              "**3D-Modell Info:**\n" +
+              "- Typ: " + args.modelType + "\n" +
+              "- Beschreibung: " + args.description + "\n" +
+              "- Format: GLB (3D-Modell)\n\n" +
+              "⚠️ Hinweis: Dies ist eine Vorschau. Für echte 3D-Modellgenerierung werden externe Services wie Meshy.ai oder Spline benötigt.";
+            
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: message
+            });
+          } else {
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: "3D-Modell-Generierung fehlgeschlagen. Bitte versuche es erneut."
+            });
+          }
+        } else if (toolCall.function.name === "convert_file") {
+          const args = JSON.parse(toolCall.function.arguments);
+          console.log('File conversion requested:', args);
+          
+          const message = "**Dateikonvertierung:**\n\n" +
+            "- Quelldatei: " + args.fileName + "\n" +
+            "- Von: ." + args.sourceFormat + "\n" +
+            "- Nach: ." + args.targetFormat + "\n\n" +
+            "⚠️ **Wichtiger Hinweis:**\n" +
+            "Echte Dateikonvertierung (besonders für 3D-Formate wie .max → .fbx) erfordert spezialisierte externe Services oder Software wie:\n" +
+            "- Autodesk 3ds Max (für .max Dateien)\n" +
+            "- Blender (Open Source, kostenlos)\n" +
+            "- Online-Konverter wie AnyConv oder CloudConvert\n\n" +
+            "Ich kann dir aber gerne bei der Auswahl des richtigen Tools helfen oder Code für die Integration solcher Services schreiben!";
+          
+          toolMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: message
+          });
         }
       }
 
