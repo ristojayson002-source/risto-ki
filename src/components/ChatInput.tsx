@@ -178,7 +178,7 @@ export const ChatInput = ({
               onKeyDown={handleKeyDown}
               placeholder="Nachricht an Risto..."
               className="min-h-[50px] sm:min-h-[60px] max-h-[200px] resize-none rounded-2xl bg-input border-border/50 focus:border-primary transition-all pr-10 sm:pr-12 shadow-inner text-sm sm:text-base"
-              disabled={disabled}
+              disabled={false}
             />
           </div>
 

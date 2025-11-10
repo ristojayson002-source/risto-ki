@@ -258,8 +258,44 @@ const Index = () => {
     setIsTyping(false);
   };
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const imageData = reader.result as string;
+          sendMessage("Was ist auf diesem Bild?", imageData);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        sendMessage(`Bitte bearbeite diese Datei: ${file.name}`, undefined, file);
+      }
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div 
+      className={`min-h-screen bg-background flex flex-col transition-all ${isDragging ? 'ring-4 ring-primary ring-inset' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-border/30 bg-background/95 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-5 flex items-center justify-between">

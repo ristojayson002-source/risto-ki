@@ -396,27 +396,20 @@ serve(async (req) => {
           console.log('3D model generation requested:', args);
           
           // Generiere ein Placeholder-Bild des 3D-Modells
-          const modelPrompt = "A professional 3D render of " + args.description + ", high quality, studio lighting, detailed textures, realistic materials, 4k quality";
+          const modelPrompt = "A professional 3D render of " + args.description + ", high quality, studio lighting, detailed textures, realistic materials, 4k quality, white background, isometric view";
           const previewUrl = await generateImage(modelPrompt, LOVABLE_API_KEY);
           
           if (previewUrl) {
-            const message = "3D_MODEL_GENERATED:" + previewUrl + "\n\n" +
-              "**3D-Modell Info:**\n" +
-              "- Typ: " + args.modelType + "\n" +
-              "- Beschreibung: " + args.description + "\n" +
-              "- Format: GLB (3D-Modell)\n\n" +
-              "⚠️ Hinweis: Dies ist eine Vorschau. Für echte 3D-Modellgenerierung werden externe Services wie Meshy.ai oder Spline benötigt.";
-            
             toolMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: message
+              content: "3D_MODEL_PREVIEW:" + previewUrl + "|" + args.description + "|" + args.modelType
             });
           } else {
             toolMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: "3D-Modell-Generierung fehlgeschlagen. Bitte versuche es erneut."
+              content: "3D-Modellvorschau konnte nicht erstellt werden. Bitte beschreibe dem Nutzer das 3D-Modell detailliert."
             });
           }
         } else if (toolCall.function.name === "convert_file") {
@@ -508,6 +501,23 @@ serve(async (req) => {
             });
           }
           
+          // Check for 3D model preview
+          let model3DPreview = null;
+          for (const msg of toolMessages) {
+            if (msg.content.startsWith('3D_MODEL_PREVIEW:')) {
+              const parts = msg.content.replace('3D_MODEL_PREVIEW:', '').split('|');
+              model3DPreview = parts[0];
+              const description = parts[1] || '';
+              const modelType = parts[2] || 'object';
+              return new Response(JSON.stringify({ 
+                text: "Hier ist eine 3D-Vorschau von " + description + "! 🎨\n\nDies ist eine hochwertige Vorschau des " + modelType + ". Für ein vollständiges 3D-Modell können externe Services wie Meshy.ai verwendet werden.",
+                image: model3DPreview
+              }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+          
           return new Response(JSON.stringify({ 
             error: "Keine finale Antwort von der KI erhalten"
           }), {
@@ -516,7 +526,7 @@ serve(async (req) => {
           });
         }
         
-        // Check if any tool message contains a generated image or video
+        // Check if any tool message contains a generated image or video or 3D model
         let generatedImage = null;
         let isVideo = false;
         for (const msg of toolMessages) {
@@ -526,6 +536,10 @@ serve(async (req) => {
           } else if (msg.content.startsWith('VIDEO_GENERATED:')) {
             generatedImage = msg.content.replace('VIDEO_GENERATED:', '');
             isVideo = true;
+            break;
+          } else if (msg.content.startsWith('3D_MODEL_PREVIEW:')) {
+            const parts = msg.content.replace('3D_MODEL_PREVIEW:', '').split('|');
+            generatedImage = parts[0];
             break;
           }
         }

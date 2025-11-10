@@ -44,7 +44,7 @@ export const VoiceAssistantModal = ({
 
       const recognition = new SpeechRecognition();
       recognition.lang = "de-DE";
-      recognition.continuous = true;
+      recognition.continuous = false;
       recognition.interimResults = true;
 
       recognition.onstart = () => {
@@ -59,6 +59,7 @@ export const VoiceAssistantModal = ({
 
         if (event.results[current].isFinal) {
           console.log("Final transcript:", transcriptText);
+          setIsListening(false);
           handleSendMessage(transcriptText);
         }
       };
@@ -68,20 +69,24 @@ export const VoiceAssistantModal = ({
         setIsListening(false);
         if (event.error === 'not-allowed') {
           toast.error("Bitte erlaube den Zugriff auf das Mikrofon");
+        } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
+          // Restart on other errors, but not on aborted or no-speech
+          if (isOpen && !isSpeaking) {
+            setTimeout(() => startListening(), 1000);
+          }
         }
       };
 
       recognition.onend = () => {
         console.log("Recognition ended");
+        setIsListening(false);
+        // Auto-restart listening if modal is open and not speaking
         if (isOpen && !isSpeaking) {
-          // Restart listening if modal is still open and not speaking
           setTimeout(() => {
-            if (recognitionRef.current && isOpen) {
-              recognitionRef.current.start();
+            if (isOpen && !isSpeaking) {
+              startListening();
             }
-          }, 100);
-        } else {
-          setIsListening(false);
+          }, 500);
         }
       };
 
