@@ -12,6 +12,12 @@ There are several ways of editing your application.
 
 Simply visit the [Lovable Project](https://lovable.dev/projects/a660ab51-80d9-4e94-9018-69baaa222179) and start prompting.
 
+<img width="1281" height="887" alt="Screenshot 2026-08-31 195503" src="https://github.com/user-attachments/assets/f0a8da59-7d9b-41b7-92e2-57f0622ac6e2" />
+
+
+
+
+
 Changes made via Lovable will be committed automatically to this repo.
 
 **Use your preferred IDE**
